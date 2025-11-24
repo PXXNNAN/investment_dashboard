@@ -1,0 +1,382 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- 1. Filter Bar (Year Select) -->
+<div class="d-flex justify-content-left mb-4">
+    <div class="card border-0 shadow-sm" style="min-width: 300px;">
+        <div class="card-body py-2">
+            <form action="/" method="GET" class="d-flex align-items-center justify-content-center gap-2">
+                <label class="fw-bold text-secondary mb-0"><i class="far fa-calendar-alt me-1"></i> ปีงบประมาณ:</label>
+                
+                <select name="year" class="form-select w-auto fw-bold text-primary" onchange="this.form.submit()">
+                    {% for year in year_options %}
+                        <option value="{{ year }}" {{ 'selected' if year == selected_year else '' }}>
+                            {{ year }}
+                        </option>
+                    {% endfor %}
+                </select>
+                
+                <button type="submit" class="btn btn-light btn-sm text-muted" title="โหลดข้อมูล">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 2. Header Title -->
+<div class="text-center mb-4">
+    <h2 class="fw-bold text-dark">{{ selected_year }}</h2>
+    <h5 class="text-muted">- สรุปข้อมูลการลงทุนรายปี -</h5>
+</div>
+
+<!-- 3. Overview Cards & Charts -->
+<div class="row g-4">
+    
+    <!-- Overview Card -->
+    <div class="col-md-12 col-lg-3">
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-header bg-success text-white text-center rounded-top">
+                <h5 class="mb-0">Overview</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless mb-0">
+                    <tr>
+                        <td class="text-muted">วันเริ่ม</td>
+                        <td class="text-end">{{ summary.start_date }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">วันสิ้นสุด</td>
+                        <td class="text-end">{{ summary.end_date }}</td>
+                    </tr>
+                    <tr><td colspan="2"><hr class="my-1"></td></tr>
+                    <tr>
+                        <td>ยอดการลงทุน</td>
+                        <td class="text-end fw-bold">{{ "{:,.2f}".format(summary.total_investment) }}</td>
+                    </tr>
+                    <tr>
+                        <td>สินทรัพย์</td>
+                        <td class="text-end fw-bold">{{ "{:,.2f}".format(summary.current_asset) }}</td>
+                    </tr>
+                    <tr class="table-light rounded">
+                        <td>ส่วนต่าง</td>
+                        <td class="text-end {{ 'text-success fw-bold' if summary.profit_loss >= 0 else 'text-danger fw-bold' }}">
+                            {{ "{:,.2f}".format(summary.profit_loss) }}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pie Chart -->
+    <div class="col-md-6 col-lg-5">
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+                <h6 class="text-center text-muted mb-3">สัดส่วนสินทรัพย์ (Asset Allocation)</h6>
+                <div style="height: 250px;">
+                    <canvas id="portfolioPieChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Line Chart -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+                <h6 class="text-center text-muted mb-3">แนวโน้มเงินลงทุน vs มูลค่าพอร์ต</h6>
+                <div style="height: 250px;">
+                    <canvas id="growthLineChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div> <!-- จบ Row บน -->
+
+<!-- 4. ตารางที่ 1: Portfolio Summary (แก้ไขตาม Requirement) -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header text-white text-center py-3" style="background-color: #6c757d;">
+                <h5 class="mb-0 fw-bold">ยอดรวมการลงทุน (Portfolio Summary)</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-bordered text-center mb-0" style="font-size: 0.9rem;">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="min-width: 150px;">รายการ</th>
+                                <th>Jan</th><th>Feb</th><th>Mar</th><th>Apr</th><th>May</th><th>Jun</th>
+                                <th>Jul</th><th>Aug</th><th>Sep</th><th>Oct</th><th>Nov</th><th>Dec</th>
+                                <th class="bg-light fw-bold">รวมทั้งหมด</th>
+                                <th class="bg-light fw-bold">เฉลี่ย (%)</th> <!-- เปลี่ยนหัวข้อให้ชัดเจน -->
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Investment -->
+                            <tr>
+                                <td class="text-start fw-bold ps-3 bg-light">Investment</td>
+                                {% for val in main_table.investment %}
+                                    <td>{{ "{:,.2f}".format(val) }}</td>
+                                {% endfor %}
+                                <td class="fw-bold bg-light">{{ "{:,.2f}".format(main_table.total_inv) }}</td>
+                                <td class="fw-bold bg-light text-secondary">{{ "{:,.2f}".format(main_table.total_inv / 12) }}</td>
+                            </tr>
+                            <!-- Asset -->
+                            <tr>
+                                <td class="text-start fw-bold ps-3 bg-light">Current Asset</td>
+                                {% for val in main_table.asset %}
+                                    <td class="{{ 'text-muted' if val == 0 else '' }}">
+                                        {{ "{:,.2f}".format(val) if val != 0 else '฿0.00' }}
+                                    </td>
+                                {% endfor %}
+                                <td class="fw-bold bg-light">{{ "{:,.2f}".format(main_table.total_asset) }}</td>
+                                <td class="fw-bold bg-light text-secondary">{{ "{:,.2f}".format(main_table.total_asset / 12) }}</td>
+                            </tr>
+                            
+                            <!-- 🔥 ส่วนต่างคงเหลือ (Diff) แก้ตรงนี้ 🔥 -->
+                            <tr style="font-weight: bold;">
+                                <td class="text-start ps-3 bg-light">ส่วนต่างคงเหลือ</td>
+                                <!-- 1. รายเดือน: แสดงเป็นตัวเงิน (เหมือนเดิม) -->
+                                {% for val in main_table.diff %}
+                                    <td style="background-color: {{ '#d1e7dd' if val > 0 else ('#f8d7da' if val < 0 else '#ffffff') }}; 
+                                               color: {{ '#198754' if val > 0 else ('#dc3545' if val < 0 else '#ccc') }};">
+                                        {{ "{:,.2f}".format(val) }}
+                                    </td>
+                                {% endfor %}
+                                
+                                <!-- 2. รวมทั้งหมด: แสดงเป็นตัวเงิน (เหมือนเดิม) -->
+                                <td style="background-color: {{ '#d1e7dd' if main_table.total_diff > 0 else '#f8d7da' }};
+                                           color: {{ '#198754' if main_table.total_diff > 0 else '#dc3545' }};">
+                                    {{ "{:,.2f}".format(main_table.total_diff) }}
+                                </td>
+                                
+                                <!-- 3. เฉลี่ย: แสดงเป็น % (Growth Rate) แทนยอดเงินเฉลี่ย 🔥 -->
+                                <td class="bg-light" 
+                                    style="color: {{ '#198754' if main_table.total_diff_pct > 0 else ('#dc3545' if main_table.total_diff_pct < 0 else '#6c757d') }};">
+                                    {{ "{:+.2f}%".format(main_table.total_diff_pct) }}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 6. ตารางที่ 2: Investment Flow -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header text-white text-center py-3" style="background-color: #8fb8a4;"> 
+                <h5 class="mb-0 fw-bold">ยอดรวมการลงทุนตามหมวดหมู่แต่ละเดือน (Investment Flow)</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover text-center mb-0" style="font-size: 0.9rem;">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="text-start ps-3">หมวดหมู่</th>
+                                <th>Jan</th><th>Feb</th><th>Mar</th><th>Apr</th><th>May</th><th>Jun</th>
+                                <th>Jul</th><th>Aug</th><th>Sep</th><th>Oct</th><th>Nov</th><th>Dec</th>
+                                <th class="bg-light fw-bold">รวม</th><th class="bg-light fw-bold">เฉลี่ย</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in inv_pivot %}
+                            <tr>
+                                <td class="text-start fw-bold ps-3">{{ row.name }}</td>
+                                {% for val in row.months %}
+                                <td class="{{ 'text-muted' if val == 0 else '' }}">
+                                    {% if val == 0 %}<span style="color:#ccc;">฿0.00</span>
+                                    {% else %}<span class="{{ 'text-danger' if val < 0 else '' }}">{{ "{:,.2f}".format(val) }}</span>
+                                    {% endif %}
+                                </td>
+                                {% endfor %}
+                                <td class="fw-bold bg-light">{{ "{:,.2f}".format(row.total) }}</td>
+                                <td class="fw-bold bg-light text-secondary">{{ "{:,.2f}".format(row.avg) }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="15" class="text-center py-3 text-muted">ไม่มีข้อมูลการลงทุน</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 5. ตาราง Rebalancing (แก้ไขเพิ่ม Target Value) -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header text-white text-center py-3" style="background-color: #6f42c1;"> 
+                <h5 class="mb-0 fw-bold">การจัดพอร์ตและการปรับสมดุล (Portfolio Rebalancing)</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light text-center">
+                            <tr>
+                                <th class="text-start ps-4">หมวดหมู่ (Category)</th>
+                                <th>มูลค่าจริง  (Actual Value)</th>
+                                <!-- 🔥 เพิ่มคอลัมน์นี้ 🔥 -->
+                                <th class="text-primary fw-bold">มูลค่าเป้าหมาย</th>
+                                <th style="width: 20%;">สัดส่วนจริง (Actual %)</th>
+                                <th>เป้าหมาย (Target %)</th>
+                                <th>ส่วนต่าง (Diff %)</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in allocation_table %}
+                            <tr>
+                                <td class="text-start ps-4 fw-bold text-primary">{{ item.category }}</td>
+                                <td class="text-end">{{ "{:,.2f}".format(item.actual_val) }}</td>
+                                <!-- 🔥 แสดงค่า Target Value 🔥 -->
+                                <td class="text-end text-primary fw-bold">{{ "{:,.2f}".format(item.target_val) }}</td>
+                                <td class="text-center px-3">
+                                    <div class="progress" style="height: 20px; position: relative; background-color: #e9ecef;">
+                                        <div class="progress-bar bg-info" role="progressbar" style="width: {{ item.actual_pct }}%"></div>
+                                        <span style="position: absolute; left: 0; right: 0; color: black; font-size: 0.75rem; line-height: 20px;">{{ "{:.2f}%".format(item.actual_pct) }}</span>
+                                    </div>
+                                </td>
+                                <td class="text-center fw-bold text-muted">{{ "{:.2f}%".format(item.target_pct) }}</td>
+                                <td class="text-center"><span class="badge {{ 'bg-success' if item.diff_pct > 0 else ('bg-danger' if item.diff_pct < -0.1 else 'bg-secondary') }}">{{ "{:+.2f}%".format(item.diff_pct) }}</span></td>
+                                <td class="text-end fw-bold pe-4">
+                                    <!-- 🔥 ปรับ Threshold จาก 100 เหลือ 1 บาท(ตัวเลขคำนวนว่าควรซื้อขายเท่าไร พอดีรึยัง) 🔥 -->
+                                    {% if item.action_amount > 1 %}<span class="text-success"><i class="fas fa-arrow-up"></i> ซื้อเพิ่ม {{ "{:,.2f}".format(item.action_amount) }}</span>
+                                    {% elif item.action_amount < -1 %}<span class="text-danger"><i class="fas fa-arrow-down"></i> ขายออก {{ "{:,.2f}".format(item.action_amount * -1) }}</span>
+                                    {% else %}<span class="text-muted"><i class="fas fa-check-circle"></i> พอดีเป้าหมาย</span>{% endif %}
+                                </td>
+                            </tr>
+                            {% else %}<tr><td colspan="7" class="text-center py-3 text-muted">ยังไม่มีข้อมูลเป้าหมาย</td></tr>{% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 7. ตารางที่ 3: Asset Snapshot -->
+<div class="row mt-4 mb-5">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header text-white text-center py-3" style="background-color: #8fb8a4;"> 
+                <h5 class="mb-0 fw-bold">ยอดรวมสินทรัพย์ตามรายชื่อแต่ละเดือน (Asset Snapshot by Asset Name)</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover text-center mb-0" style="font-size: 0.9rem;">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="text-start ps-3">รายชื่อสินทรัพย์ (Asset)</th>
+                                <th>Jan</th><th>Feb</th><th>Mar</th><th>Apr</th><th>May</th><th>Jun</th>
+                                <th>Jul</th><th>Aug</th><th>Sep</th><th>Oct</th><th>Nov</th><th>Dec</th>
+                                <th class="bg-light fw-bold">รวม</th><th class="bg-light fw-bold">เฉลี่ย</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in asset_pivot %}
+                            <tr>
+                                <td class="text-start fw-bold ps-3">{{ row.name }}</td>
+                                {% for val in row.months %}
+                                <td class="{{ 'text-muted' if val == 0 else '' }}">
+                                    {% if val == 0 %}
+                                        <span style="color: #ccc;">฿0.00</span>
+                                    {% else %}
+                                        {{ "{:,.2f}".format(val) }}
+                                    {% endif %}
+                                </td>
+                                {% endfor %}
+                                <td class="fw-bold bg-light">{{ "{:,.2f}".format(row.total) }}</td>
+                                <td class="fw-bold bg-light text-secondary">{{ "{:,.2f}".format(row.avg) }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="15" class="text-center py-3 text-muted">ไม่มีข้อมูลสินทรัพย์</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // รับข้อมูลจาก Python (ใช้ default([]) เพื่อกัน Error)
+    const pieLabels = {{ pie_labels | tojson | default([]) }};
+    const pieData = {{ pie_values | tojson | default([]) }};
+    
+    // ข้อมูลสำหรับกราฟเส้น
+    const lineLabels = {{ line_labels | tojson | default([]) }};
+    const lineDataInv = {{ line_values | tojson | default([]) }};
+    const lineDataAsset = {{ main_table.asset | tojson | default([]) }};
+
+    // --- Pie Chart ---
+    const ctxPie = document.getElementById('portfolioPieChart').getContext('2d');
+    new Chart(ctxPie, {
+        type: 'doughnut',
+        data: {
+            labels: pieLabels,
+            datasets: [{
+                data: pieData,
+                backgroundColor: [
+                    '#4285F4', '#DB4437', '#F4B400', '#0F9D58', '#ab47bc', 
+                    '#00acc1', '#ff7043', '#9e9e9e', '#5c6bc0', '#8d6e63'
+                ],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'right', labels: { boxWidth: 12 } } }
+        }
+    });
+
+    // --- Line Chart ---
+    const ctxLine = document.getElementById('growthLineChart').getContext('2d');
+    new Chart(ctxLine, {
+        type: 'line',
+        data: {
+            labels: lineLabels,
+            datasets: [
+                {
+                    label: 'Investment (ต้นทุนสะสม)',
+                    data: lineDataInv,
+                    borderColor: '#0d6efd', // สีฟ้า
+                    backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                    tension: 0.4,
+                    fill: true,
+                    pointRadius: 3
+                },
+                {
+                    label: 'Current Asset (มูลค่าพอร์ต)',
+                    data: lineDataAsset, // สีแดง
+                    borderColor: '#dc3545', 
+                    backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                    tension: 0.4,
+                    fill: true,
+                    pointRadius: 3
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: true } },
+            scales: { x: { grid: { display: false } }, y: { beginAtZero: true } }
+        }
+    });
+</script>
+{% endblock %}

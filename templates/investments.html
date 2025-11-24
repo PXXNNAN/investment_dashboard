@@ -1,0 +1,351 @@
+{% extends "base.html" %}
+{% block title %}Investments{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="mb-0"><i class="fas fa-exchange-alt text-primary"></i> บันทึกการลงทุน (Transaction Log)</h3>
+        <p class="text-muted small mb-0">ประวัติการทำรายการ ซื้อ-ขาย-ฝาก-ถอน ทั้งหมด</p>
+    </div>
+    <button class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#addInvestModal">
+        <i class="fas fa-plus-circle me-2"></i> เพิ่มรายการใหม่
+    </button>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm" role="alert">
+        <i class="fas fa-info-circle me-2"></i> {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<!-- 1. Chart -->
+<div class="card mb-4 border-0 shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 text-muted"><i class="fas fa-chart-bar me-2"></i>กระแสเงินสดรายเดือน (Monthly Cash Flow)</h6>
+    </div>
+    <div class="card-body">
+        <div style="height: 300px;">
+            <canvas id="investFlowChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- 2. Filter -->
+<div class="card mb-4 border-0 shadow-sm">
+    <div class="card-body bg-white rounded">
+        <form action="/investments" method="GET" class="row g-3 align-items-end">
+            <div class="col-md-2">
+                <label class="small fw-bold text-muted">ปี (Year)</label>
+                <select name="year" class="form-select form-select-sm">
+                    {% for yr in year_options %}
+                        <option value="{{ yr }}" {{ 'selected' if yr == selected_year else '' }}>{{ yr }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="small fw-bold text-muted">ประเภท (Action)</label>
+                <select name="action" class="form-select form-select-sm">
+                    <option value="">ทั้งหมด</option>
+                    <option value="Buy" {{ 'selected' if selected_action == 'Buy' else '' }}>Buy (ซื้อ)</option>
+                    <option value="Sell" {{ 'selected' if selected_action == 'Sell' else '' }}>Sell (ขาย)</option>
+                    <option value="Deposit" {{ 'selected' if selected_action == 'Deposit' else '' }}>Deposit (เติมเงิน)</option>
+                    <option value="Withdraw" {{ 'selected' if selected_action == 'Withdraw' else '' }}>Withdraw (ถอนเงิน)</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="small fw-bold text-muted">ชื่อสินทรัพย์</label>
+                <select name="name" class="form-select form-select-sm">
+                    <option value="">ทุกสินทรัพย์</option>
+                    {% for a in assets %}
+                        <option value="{{ a }}" {{ 'selected' if a == selected_name else '' }}>{{ a }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="small fw-bold text-muted">หมวดหมู่</label>
+                <select name="category" class="form-select form-select-sm">
+                    <option value="">ทุกหมวดหมู่</option>
+                    {% for c in categories %}
+                        <option value="{{ c }}" {{ 'selected' if c == selected_category else '' }}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary w-100">ค้นหา</button>
+                    <a href="/investments" class="btn btn-outline-secondary">Reset</a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 3. Data Table -->
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="d-flex justify-content-between align-items-center p-3 border-bottom bg-light">
+            <div class="d-flex align-items-center gap-2">
+                <label class="small text-muted fw-bold">แสดง</label>
+                <select id="rowsPerPage" class="form-select form-select-sm" style="width: 80px;" onchange="changeRowsPerPage()">
+                    <option value="10">10</option><option value="20">20</option><option value="50">50</option><option value="1000000">ทั้งหมด</option>
+                </select>
+                <label class="small text-muted fw-bold">รายการ</label>
+            </div>
+            <div class="small text-muted" id="showingInfo">กำลังโหลด...</div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="investTable">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-3 py-3" onclick="sortTable(0)" style="cursor:pointer">Date <i class="fas fa-sort small text-muted"></i></th>
+                        <th class="text-center" onclick="sortTable(1)" style="cursor:pointer">Action <i class="fas fa-sort small text-muted"></i></th>
+                        <th onclick="sortTable(2)" style="cursor:pointer">Asset <i class="fas fa-sort small text-muted"></i></th>
+                        <th>Category</th>
+                        <th class="text-end">Qty</th>
+                        <th class="text-end">Price</th>
+                        <th class="text-end pe-3" onclick="sortTable(6)" style="cursor:pointer">Total Amount <i class="fas fa-sort small text-muted"></i></th>
+                        <th class="text-center">Note</th>
+                        <th class="text-center">Manage</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+        <div class="d-flex justify-content-end p-3 bg-light border-top">
+            <nav><ul class="pagination pagination-sm mb-0" id="paginationControls"></ul></nav>
+        </div>
+    </div>
+</div>
+
+<!-- Add Modal -->
+<div class="modal fade" id="addInvestModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-plus-circle me-2"></i> บันทึกรายการใหม่</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light p-0">
+                <ul class="nav nav-tabs nav-fill" id="addModeTab" role="tablist">
+                    <li class="nav-item" role="presentation"><button class="nav-link active rounded-0 py-3 fw-bold" id="single-tab" data-bs-toggle="tab" data-bs-target="#single-pane" type="button">รายการเดียว</button></li>
+                    <li class="nav-item" role="presentation"><button class="nav-link rounded-0 py-3 fw-bold text-success" id="bulk-tab" data-bs-toggle="tab" data-bs-target="#bulk-pane" type="button">หลายรายการ (Bulk)</button></li>
+                </ul>
+                <div class="tab-content p-4">
+                    <!-- Tab 1: Single Add -->
+                    <div class="tab-pane fade show active" id="single-pane">
+                        <form action="/investments" method="POST" id="addForm">
+                            <input type="hidden" name="action" value="add">
+                            <div class="row g-3">
+                                <div class="col-md-6"><label class="fw-bold">วันที่</label><input type="text" name="date" id="add_date" class="form-control datepicker" required onclick="try{this.showPicker()}catch(e){}" style="cursor: pointer;"></div>
+                                <div class="col-md-6"><label class="fw-bold">ประเภท</label><select name="type" id="add_type" class="form-select" onchange="toggleFields('add'); calcTotal('add');" required><option value="Buy">Buy</option><option value="Sell">Sell</option><option value="Deposit">Deposit</option><option value="Withdraw">Withdraw</option></select></div>
+                                <div class="col-md-6"><label class="fw-bold">สินทรัพย์</label><input class="form-control" list="assetOptions" name="name" placeholder="เลือก..." required autocomplete="off"></div>
+                                <div class="col-md-6"><label class="fw-bold">หมวดหมู่</label><select name="category" class="form-select" required>{% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select></div>
+                                <div class="col-12" id="add_trade_fields"><div class="card border-0 shadow-sm"><div class="card-body bg-white rounded"><div class="row g-3"><div class="col-md-6"><label class="small text-muted">Qty</label><input type="number" step="0.00000001" name="quantity" id="add_qty" class="form-control bg-light" oninput="calcTotal('add')"></div><div class="col-md-6"><label class="small text-muted">Price</label><input type="number" step="0.01" name="price" id="add_price" class="form-control bg-light" oninput="calcTotal('add')"></div></div></div></div></div>
+                                <div class="col-md-6"><label class="fw-bold text-primary">Total</label><input type="number" step="0.01" name="amount" id="add_amount" class="form-control fw-bold text-end" required><div class="form-text text-muted small" id="add_hint"></div></div>
+                                <div class="col-md-6"><label class="fw-bold">Note</label><input type="text" name="note" class="form-control"></div>
+                            </div>
+                            <div class="mt-4 d-grid"><button type="submit" class="btn btn-primary py-2 fw-bold shadow-sm">บันทึก</button></div>
+                        </form>
+                    </div>
+                    
+                    <!-- Tab 2: Bulk Add (แก้ไขตรงนี้: เปลี่ยน Asset เป็น Dropdown) -->
+                    <div class="tab-pane fade" id="bulk-pane">
+                        <form action="/investments" method="POST" id="bulkForm">
+                            <input type="hidden" name="action" value="add_bulk">
+                            <div class="mb-3 row align-items-center"><label class="col-sm-3 col-form-label fw-bold">วันที่จด (ร่วมกัน)</label><div class="col-sm-9"><input type="text" name="date" id="bulkDate" class="form-control datepicker" required onclick="try{this.showPicker()}catch(e){}" style="cursor: pointer;"></div></div>
+                            <div class="table-responsive mb-3" style="max-height: 350px; overflow-y: auto;">
+                                <table class="table table-bordered table-sm mb-0" id="bulkTable" style="min-width: 900px;">
+                                    <thead class="table-light sticky-top"><tr><th width="12%">Action</th><th width="18%">Asset</th><th width="15%">Cat</th><th width="10%">Qty</th><th width="10%">Price</th><th width="15%">Total</th><th width="15%">Note</th><th width="5%"></th></tr></thead>
+                                    <tbody id="bulkTableBody">
+                                        <tr class="bulk-row">
+                                            <td><select name="type[]" class="form-select form-select-sm" onchange="toggleBulkRow(this)" required><option value="Buy">Buy</option><option value="Sell">Sell</option><option value="Deposit">Deposit</option><option value="Withdraw">Withdraw</option></select></td>
+                                            <td>
+                                                <!-- 🔥 เปลี่ยนเป็น Select 🔥 -->
+                                                <select name="name[]" class="form-select form-select-sm" required>
+                                                    <option value="" selected disabled>เลือก...</option>
+                                                    {% for asset in assets %}
+                                                        <option value="{{ asset }}">{{ asset }}</option>
+                                                    {% endfor %}
+                                                </select>
+                                            </td>
+                                            <td><select class="form-select form-select-sm" name="category[]" required>{% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select></td>
+                                            <td><input type="number" step="0.0001" name="quantity[]" class="form-control form-control-sm qty-input" oninput="calcBulkRow(this)"></td>
+                                            <td><input type="number" step="0.01" name="price[]" class="form-control form-control-sm price-input" oninput="calcBulkRow(this)"></td>
+                                            <td><input type="number" step="0.01" name="amount[]" class="form-control form-control-sm amount-input" required></td>
+                                            <td><input type="text" name="note[]" class="form-control form-control-sm"></td>
+                                            <td class="text-center"><button type="button" class="btn btn-sm btn-outline-secondary disabled"><i class="fas fa-times"></i></button></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="d-flex justify-content-between"><button type="button" class="btn btn-outline-primary btn-sm" onclick="addBulkInvestRow()"><i class="fas fa-plus"></i> เพิ่มแถว</button><button type="submit" class="btn btn-success fw-bold">บันทึกทั้งหมด</button></div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<datalist id="assetOptions">{% for a in assets %}<option value="{{ a }}">{% endfor %}</datalist>
+
+<!-- Edit & Delete Modals -->
+<div class="modal fade" id="editInvestModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header bg-warning text-dark"><h5 class="modal-title">แก้ไข</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body bg-light"><form action="/investments" method="POST"><input type="hidden" name="action" value="edit"><input type="hidden" name="id" id="edit_id"><div class="row g-3"><div class="col-md-6"><label class="fw-bold">Date</label><input type="text" name="date" id="edit_date" class="form-control datepicker" required></div><div class="col-md-6"><label class="fw-bold">Type</label><select name="type" id="edit_type" class="form-select" onchange="toggleFields('edit');calcTotal('edit');" required><option value="Buy">Buy</option><option value="Sell">Sell</option><option value="Deposit">Deposit</option><option value="Withdraw">Withdraw</option></select></div><div class="col-md-6"><label class="fw-bold">Asset</label><input class="form-control" list="assetOptions" name="name" id="edit_name" required></div><div class="col-md-6"><label class="fw-bold">Category</label><select name="category" id="edit_category" class="form-select" required>{% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select></div><div class="col-12" id="edit_trade_fields"><div class="card border-0 shadow-sm"><div class="card-body bg-white rounded"><div class="row g-3"><div class="col-md-6"><label class="small text-muted">Qty</label><input type="number" step="0.0001" name="quantity" id="edit_qty" class="form-control bg-light" oninput="calcTotal('edit')"></div><div class="col-md-6"><label class="small text-muted">Price</label><input type="number" step="0.01" name="price" id="edit_price" class="form-control bg-light" oninput="calcTotal('edit')"></div></div></div></div></div><div class="col-md-6"><label class="fw-bold">Total</label><input type="number" step="0.01" name="amount" id="edit_amount" class="form-control fw-bold text-end" required></div><div class="col-md-6"><label class="fw-bold">Note</label><input type="text" name="note" id="edit_note" class="form-control"></div></div><div class="mt-4 d-grid"><button type="submit" class="btn btn-warning">บันทึก</button></div></form></div></div></div></div>
+<div class="modal fade" id="deleteInvestModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header bg-danger text-white"><h5 class="modal-title">ลบ</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><p>ยืนยันลบ?</p><form action="/investments" method="POST"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" id="del_id"><div class="d-grid"><button type="submit" class="btn btn-danger">ยืนยัน</button></div></form></div></div></div></div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const allData = {{ records | tojson | default('[]') }};
+    const chartData = {{ chart_data | tojson | default('{}') }};
+    let currentPage = 1; let rowsPerPage = 10;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        flatpickr(".datepicker", { dateFormat: "Y-m-d", altInput: true, altFormat: "d/m/Y", defaultDate: new Date() });
+        const bulkDate = document.getElementById('bulkDate'); if(bulkDate) bulkDate._flatpickr.setDate(new Date());
+        toggleFields('add');
+        renderTable();
+        if(chartData.datasets && chartData.datasets.length > 0) {
+            new Chart(document.getElementById('investFlowChart').getContext('2d'), {type: 'bar', data: chartData, options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {position:'bottom'}}, scales: {y: {beginAtZero: true}, x: {grid:{display:false}}}}});
+        }
+    });
+
+    function renderTable() {
+        const tbody = document.getElementById('tableBody');
+        tbody.innerHTML = '';
+        if (allData.length === 0) { tbody.innerHTML = '<tr><td colspan="9" class="text-center py-5 text-muted">ไม่พบข้อมูล</td></tr>'; return; }
+        const start = (currentPage - 1) * rowsPerPage;
+        const end = start + rowsPerPage;
+        const pageData = allData.slice(start, end);
+
+        pageData.forEach(item => {
+            let badgeClass = 'bg-light text-dark border';
+            if(item.action === 'Buy') badgeClass = 'bg-success-subtle text-success border border-success-subtle';
+            else if(item.action === 'Sell') badgeClass = 'bg-danger-subtle text-danger border border-danger-subtle';
+            else if(item.action === 'Deposit') badgeClass = 'bg-primary-subtle text-primary border border-primary-subtle';
+            else if(item.action === 'Withdraw') badgeClass = 'bg-secondary-subtle text-secondary border border-secondary-subtle';
+            
+            let amountClass = item.amount < 0 ? 'text-danger' : 'text-success';
+            let amountSign = item.amount < 0 ? '' : '+'; if(item.amount==0) { amountClass='text-muted'; amountSign=''; }
+
+            const row = `<tr>
+                <td class="ps-3 text-muted font-monospace">${item.date}</td>
+                <td class="text-center"><span class="badge ${badgeClass} rounded-pill px-3">${item.action}</span></td>
+                <td class="fw-bold text-dark">${item.name}</td>
+                <td><small class="text-muted">${item.category}</small></td>
+                <td class="text-end font-monospace text-muted">${item.qty ? parseFloat(item.qty).toLocaleString('en-US') : '-'}</td>
+                <td class="text-end font-monospace text-muted">${item.price ? parseFloat(item.price).toLocaleString('en-US') : '-'}</td>
+                <td class="text-end pe-3 fw-bold font-monospace ${amountClass}" style="font-size: 1rem;">${amountSign}${parseFloat(item.amount).toLocaleString('en-US',{minimumFractionDigits:2})}</td>
+                <td class="text-center">${item.note ? '<i class="far fa-comment-dots text-secondary"></i>' : '-'}</td>
+                <td class="text-center">
+                    <div class="btn-group btn-group-sm">
+                    <button class="btn btn-light text-warning" onclick="openEditModal('${item.id}','${item.date}','${item.action}','${item.name}','${item.category}','${item.qty}','${item.price}','${item.amount}','${item.note}')"><i class="fas fa-pen"></i></button>
+                    <button class="btn btn-light text-danger" onclick="openDeleteModal('${item.id}','${item.date}','${item.name}','${item.amount}')"><i class="fas fa-trash"></i></button>
+                    </div>
+                </td>
+            </tr>`;
+            tbody.innerHTML += row;
+        });
+        document.getElementById('showingInfo').innerText = `แสดง ${start+1}-${Math.min(end, allData.length)} จาก ${allData.length}`;
+    }
+    function changeRowsPerPage() { rowsPerPage = parseInt(document.getElementById('rowsPerPage').value); currentPage = 1; renderTable(); }
+    function changePage(p) { currentPage = p; renderTable(); }
+
+    function toggleFields(mode) {
+        const type = document.getElementById(mode + '_type').value;
+        const tradeFields = document.getElementById(mode + '_trade_fields');
+        const hint = document.getElementById(mode + '_hint');
+        if (type === 'Buy' || type === 'Sell') tradeFields.style.display = 'block';
+        else { tradeFields.style.display = 'none'; document.getElementById(mode + '_qty').value = ''; document.getElementById(mode + '_price').value = ''; }
+        if (hint) {
+            if (type === 'Buy' || type === 'Withdraw') hint.innerHTML = '<i class="fas fa-info-circle"></i> ยอดเป็น <b>ลบ (-)</b>';
+            else hint.innerHTML = '<i class="fas fa-info-circle"></i> ยอดเป็น <b>บวก (+)</b>';
+        }
+    }
+    function calcTotal(mode) {
+        const type = document.getElementById(mode + '_type').value;
+        const qty = parseFloat(document.getElementById(mode + '_qty').value)||0;
+        const price = parseFloat(document.getElementById(mode + '_price').value)||0;
+        if (qty > 0 && price > 0) {
+            let total = qty * price;
+            if (type === 'Buy') total = -Math.abs(total); else if (type === 'Sell') total = Math.abs(total);
+            document.getElementById(mode + '_amount').value = total.toFixed(2);
+        }
+    }
+    
+    // 🔥 FIX: ปรับปรุงฟังก์ชัน JS เพื่อสร้าง Select Box ในแถวใหม่ 🔥
+    function addBulkInvestRow() {
+        const tbody = document.getElementById('bulkTableBody');
+        const row = document.createElement('tr'); row.className = 'bulk-row';
+        row.innerHTML = `
+            <td><select name="type[]" class="form-select form-select-sm" onchange="toggleBulkRow(this)" required><option value="Buy">Buy</option><option value="Sell">Sell</option><option value="Deposit">Deposit</option><option value="Withdraw">Withdraw</option></select></td>
+            <td>
+                <select name="name[]" class="form-select form-select-sm" required>
+                    <option value="" selected disabled>เลือก...</option>
+                    {% for asset in assets %}
+                        <option value="{{ asset }}">{{ asset }}</option>
+                    {% endfor %}
+                </select>
+            </td>
+            <td><select class="form-select form-select-sm" name="category[]" required>{% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select></td>
+            <td><input type="number" step="0.0001" name="quantity[]" class="form-control form-control-sm qty-input" oninput="calcBulkRow(this)"></td>
+            <td><input type="number" step="0.01" name="price[]" class="form-control form-control-sm price-input" oninput="calcBulkRow(this)"></td>
+            <td><input type="number" step="0.01" name="amount[]" class="form-control form-control-sm amount-input" required></td>
+            <td><input type="text" name="note[]" class="form-control form-control-sm"></td>
+            <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeBulkInvestRow(this)"><i class="fas fa-times"></i></button></td>
+        `;
+        tbody.appendChild(row);
+    }
+    function removeBulkInvestRow(btn) { if(document.querySelectorAll('#bulkTableBody tr').length > 1) btn.closest('tr').remove(); }
+    function toggleBulkRow(select) {
+        const row = select.closest('tr');
+        const qty = row.querySelector('.qty-input'); const price = row.querySelector('.price-input');
+        if (select.value === 'Buy' || select.value === 'Sell') { 
+            qty.readOnly = false; price.readOnly = false;
+            qty.classList.remove('bg-secondary-subtle'); price.classList.remove('bg-secondary-subtle');
+        }
+        else { 
+            qty.readOnly = true; price.readOnly = true; qty.value=''; price.value=''; 
+            qty.classList.add('bg-secondary-subtle'); price.classList.add('bg-secondary-subtle');
+        }
+    }
+    function calcBulkRow(input) {
+        const row = input.closest('tr');
+        const type = row.querySelector('select[name="type[]"]').value;
+        const qty = parseFloat(row.querySelector('.qty-input').value)||0;
+        const price = parseFloat(row.querySelector('.price-input').value)||0;
+        if(qty>0 && price>0) {
+            let total = qty*price;
+            if(type==='Buy') total = -Math.abs(total); else if(type==='Sell') total = Math.abs(total);
+            row.querySelector('.amount-input').value = total.toFixed(2);
+        }
+    }
+
+    function openEditModal(id, d, t, n, c, q, p, a, note) {
+        let fd = d; if(d.includes('/')) fd = d.split('/').reverse().join('-');
+        document.getElementById('edit_id').value = id;
+        const fp = document.querySelector("#edit_date")._flatpickr; if(fp) fp.setDate(fd); else document.getElementById('edit_date').value=fd;
+        document.getElementById('edit_type').value = t; document.getElementById('edit_name').value = n; document.getElementById('edit_category').value = c;
+        document.getElementById('edit_qty').value = (q==='None'||q==='-')?'':q; document.getElementById('edit_price').value = (p==='None'||p==='-')?'':p;
+        document.getElementById('edit_amount').value = Math.abs(a); document.getElementById('edit_note').value = (note==='None')?'':note;
+        toggleFields('edit');
+        new bootstrap.Modal(document.getElementById('editInvestModal')).show();
+    }
+    function openDeleteModal(id, d, n, a) {
+        document.getElementById('del_id').value = id; document.getElementById('del_date_show').innerText = d; document.getElementById('del_name_show').innerText = n; document.getElementById('del_amount_show').innerText = parseFloat(a).toLocaleString();
+        new bootstrap.Modal(document.getElementById('deleteInvestModal')).show();
+    }
+    function sortTable(n) { /* sort logic */ }
+</script>
+{% endblock %}

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Port - {% block title %}{% endblock %}</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div id="loading-overlay">
+    <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <div class="loading-text">กำลังดำเนินการ...</div>
+</div>
+
+<div class="d-flex" id="wrapper">
+
+    <!-- 🔥 Sidebar: เพิ่ม class "d-flex flex-column" เพื่อจัด Layout แนวตั้ง 🔥 -->
+    <div class="border-end d-flex flex-column" id="sidebar-wrapper">
+        
+        <!-- 1. ส่วนหัวเมนู -->
+        <div class="sidebar-heading"><i class="fas fa-coins me-2"></i> My Port</div>
+        
+        <!-- 2. รายการเมนู -->
+        <div class="list-group list-group-flush">
+            <a href="/" class="list-group-item list-group-item-action nav-link-custom {{ 'active' if request.path == '/' else '' }}">
+                <i class="fas fa-chart-pie me-2"></i> Dashboard
+            </a>
+            <a href="/assets" class="list-group-item list-group-item-action nav-link-custom {{ 'active' if request.path == '/assets' else '' }}">
+                <i class="fas fa-wallet me-2"></i> Current Asset
+            </a>
+            <a href="/investments" class="list-group-item list-group-item-action nav-link-custom {{ 'active' if request.path == '/investments' else '' }}">
+                <i class="fas fa-exchange-alt me-2"></i> Investment
+            </a>
+            <a href="/settings" class="list-group-item list-group-item-action nav-link-custom {{ 'active' if request.path == '/settings' else '' }}">
+                <i class="fas fa-cog me-2"></i> Settings
+            </a>
+        </div>
+
+        <!-- 🔥 3. ส่วนแสดงเวอร์ชัน (ใช้ mt-auto ดันลงล่างสุด) 🔥 -->
+        <div class="mt-auto p-3 text-center text-white-50" style="border-top: 1px solid rgba(255,255,255,0.1);">
+            <small style="font-size: 0.75rem; display: block; opacity: 0.7;">Investment Dashboard</small>
+            <span class="fw-bold" style="font-size: 0.85rem; letter-spacing: 1px;">v1.0.0</span>
+        </div>
+
+    </div>
+
+    <!-- Page Content -->
+    <div id="page-content-wrapper">
+        <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm sticky-top">
+            <div class="container-fluid">
+                <button class="btn btn-primary-custom" id="menu-toggle">
+                    <i class="fas fa-bars"></i> เมนู
+                </button>
+                <div class="ms-auto text-muted">
+                    <small><i class="far fa-clock"></i> Update ล่าสุด: วันนี้</small>
+                </div>
+            </div>
+        </nav>
+
+        <div class="container-fluid px-4 py-4">
+            {% block content %}
+            {% endblock %}
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        var el = document.getElementById("wrapper");
+        var toggleButton = document.getElementById("menu-toggle");
+
+        toggleButton.onclick = function () {
+            el.classList.toggle("toggled");
+        };
+
+        const loader = document.getElementById('loading-overlay');
+        const navLinks = document.querySelectorAll('.nav-link-custom');
+
+        navLinks.forEach(link => {
+            link.addEventListener('click', function(e) {
+                const currentUrl = window.location.origin + window.location.pathname;
+                if (this.href !== currentUrl && this.href !== window.location.href) {
+                    loader.style.display = 'flex';
+                }
+            });
+        });
+
+        window.addEventListener('pageshow', function(event) {
+            if (event.persisted) {
+                loader.style.display = 'none';
+            }
+        });
+    });
+</script>
+
+{% block scripts %}{% endblock %}
+
+</body>
+</html>

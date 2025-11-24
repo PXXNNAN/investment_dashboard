@@ -1,0 +1,510 @@
+{% extends "base.html" %}
+{% block title %}Current Asset{% endblock %}
+
+{% block content %}
+
+<!-- เพิ่ม CSS ของ Flatpickr -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3><i class="fas fa-wallet text-success"></i> สินทรัพย์ปัจจุบัน (Monthly Snapshot)</h3>
+    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addAssetModal">
+        <i class="fas fa-plus"></i> บันทึกข้อมูล (Add Data)
+    </button>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<!-- 3. ยอดรวมล่าสุด -->
+<div class="alert alert-info d-flex justify-content-between align-items-center shadow-sm border-0 mb-4">
+    <div>
+        <i class="fas fa-coins me-2"></i> 
+        <span class="fw-bold">มูลค่าพอร์ตปัจจุบันรวม:</span> 
+        <span class="fs-5 fw-bold ms-2">฿{{ "{:,.2f}".format(latest_total_value | default(0)) }}</span>
+    </div>
+    <small class="opacity-75">*คำนวณจากยอดล่าสุดของทุกสินทรัพย์</small>
+</div>
+
+<!-- 2. ส่วนฟิลเตอร์ (Filter) -->
+<div class="card mb-4 border-0 shadow-sm">
+    <div class="card-body bg-white rounded">
+        <form action="/assets" method="GET" class="row g-3 align-items-end">
+            
+            <div class="col-md-3">
+                <label class="form-label fw-bold small text-muted">ปีงบประมาณ</label>
+                <select name="year" class="form-select">
+                    {% for yr in year_options %}
+                        <option value="{{ yr }}" {{ 'selected' if yr == selected_year else '' }}>{{ yr }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label fw-bold small text-muted">ชื่อสินทรัพย์</label>
+                <select name="name" class="form-select">
+                    <option value="">ทุกสินทรัพย์</option>
+                    {% for asset in assets %}
+                        <option value="{{ asset }}" {{ 'selected' if asset == selected_name else '' }}>{{ asset }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label fw-bold small text-muted">หมวดหมู่</label>
+                <select name="category" class="form-select">
+                    <option value="">ทุกหมวดหมู่</option>
+                    {% for cat in categories %}
+                        <option value="{{ cat }}" {{ 'selected' if cat == selected_category else '' }}>{{ cat }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary flex-grow-1"><i class="fas fa-search me-1"></i> ค้นหา</button>
+                    <a href="/assets" class="btn btn-outline-secondary"><i class="fas fa-redo"></i> Reset</a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 1. ส่วนกราฟ (Chart) -->
+<div class="card mb-4 border-0 shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 text-muted"><i class="fas fa-chart-line me-2"></i>แนวโน้มมูลค่าสินทรัพย์ (ตามฟิลเตอร์)</h6>
+    </div>
+    <div class="card-body">
+        <div style="height: 300px;">
+            <canvas id="assetLineChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- 4. ตารางข้อมูล (Data Table) -->
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        
+        <!-- Pagination Controls -->
+        <div class="d-flex justify-content-between align-items-center p-3 border-bottom bg-light">
+            <div class="d-flex align-items-center gap-2">
+                <label class="small text-muted fw-bold">แสดง</label>
+                <select id="rowsPerPage" class="form-select form-select-sm" style="width: 80px;" onchange="changeRowsPerPage()">
+                    <option value="10">10</option>
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                    <option value="1000000">ทั้งหมด</option>
+                </select>
+                <label class="small text-muted fw-bold">รายการ</label>
+            </div>
+            <div class="small text-muted" id="showingInfo">กำลังโหลด...</div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="assetTable">
+                <thead class="table-light">
+                    <tr>
+                        <th class="py-3 ps-3" onclick="sortTable(0)" style="cursor:pointer">Date <i class="fas fa-sort small text-muted"></i></th>
+                        <th onclick="sortTable(1)" style="cursor:pointer">Asset Name <i class="fas fa-sort small text-muted"></i></th>
+                        <th onclick="sortTable(2)" style="cursor:pointer">Category <i class="fas fa-sort small text-muted"></i></th>
+                        <th class="text-end pe-3" onclick="sortTable(3)" style="cursor:pointer">Amount <i class="fas fa-sort small text-muted"></i></th>
+                        <th class="text-center">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <!-- ข้อมูลจะถูกใส่โดย JS -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination Buttons -->
+        <div class="d-flex justify-content-end p-3 bg-light border-top">
+            <nav>
+                <ul class="pagination pagination-sm mb-0" id="paginationControls"></ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+<!-- 5. Add Modal -->
+<div class="modal fade" id="addAssetModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="fas fa-save me-2"></i> บันทึกมูลค่าสินทรัพย์</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                
+                <ul class="nav nav-tabs nav-fill" id="addModeTab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active rounded-0 py-3 fw-bold" id="single-tab" data-bs-toggle="tab" data-bs-target="#single-pane" type="button">
+                            <i class="fas fa-file me-2"></i> รายการเดียว (Single)
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link rounded-0 py-3 fw-bold text-primary" id="bulk-tab" data-bs-toggle="tab" data-bs-target="#bulk-pane" type="button">
+                            <i class="fas fa-layer-group me-2"></i> หลายรายการ (Bulk)
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content p-4">
+                    
+                    <!-- Tab 1: Single Add -->
+                    <div class="tab-pane fade show active" id="single-pane">
+                        <form action="/assets" method="POST">
+                            <input type="hidden" name="action" value="add">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">วันที่จดบันทึก</label>
+                                <!-- ใช้ class datepicker เพื่อเรียกใช้ Flatpickr -->
+                                <input type="text" name="date" id="recordDate" class="form-control datepicker" placeholder="เลือกวันที่..." required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">ชื่อสินทรัพย์</label>
+                                <input class="form-control" list="assetOptions" name="name" placeholder="เลือก..." required autocomplete="off">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">หมวดหมู่</label>
+                                <select class="form-select" name="category" required>
+                                    <option value="" selected disabled>เลือกหมวดหมู่...</option>
+                                    {% for cat in categories %}<option value="{{ cat }}">{{ cat }}</option>{% endfor %}
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold text-primary">มูลค่าปัจจุบัน</label>
+                                <input type="number" step="0.01" name="amount" class="form-control" placeholder="0.00" required>
+                            </div>
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-success">บันทึกรายการ</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Tab 2: Bulk Add -->
+                    <div class="tab-pane fade" id="bulk-pane">
+                        <form action="/assets" method="POST" id="bulkForm">
+                            <input type="hidden" name="action" value="add_bulk">
+                            
+                            <div class="mb-3 row align-items-center">
+                                <label class="col-sm-3 col-form-label fw-bold">วันที่จดบันทึก (ร่วมกัน)</label>
+                                <div class="col-sm-9">
+                                    <!-- ใช้ class datepicker -->
+                                    <input type="text" name="date" id="bulkDate" class="form-control datepicker" placeholder="เลือกวันที่..." required>
+                                </div>
+                            </div>
+
+                            <div class="table-responsive mb-3" style="max-height: 300px; overflow-y: auto;">
+                                <table class="table table-bordered table-sm mb-0" id="bulkTable">
+                                    <thead class="table-light sticky-top">
+                                        <tr>
+                                            <th width="35%">Asset Name</th>
+                                            <th width="30%">Category</th>
+                                            <th width="30%">Amount</th>
+                                            <th width="5%"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="bulkTableBody">
+                                        <tr>
+                                            <td>
+                                                <input class="form-control form-control-sm" list="assetOptions" name="name[]" placeholder="ชื่อสินทรัพย์" required>
+                                            </td>
+                                            <td>
+                                                <select class="form-select form-select-sm" name="category[]" required>
+                                                    <option value="" selected disabled>หมวดหมู่</option>
+                                                    {% for cat in categories %}<option value="{{ cat }}">{{ cat }}</option>{% endfor %}
+                                                </select>
+                                            </td>
+                                            <td>
+                                                <input type="number" step="0.01" name="amount[]" class="form-control form-control-sm" placeholder="0.00" required>
+                                            </td>
+                                            <td class="text-center">
+                                                <button type="button" class="btn btn-sm btn-outline-secondary disabled"><i class="fas fa-times"></i></button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div class="d-flex justify-content-between">
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="addBulkRow()">
+                                    <i class="fas fa-plus"></i> เพิ่มแถว
+                                </button>
+                                <button type="submit" class="btn btn-success">
+                                    <i class="fas fa-save me-2"></i> บันทึกทั้งหมด
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Datalist -->
+<datalist id="assetOptions">
+    {% for asset in assets %}
+    <option value="{{ asset }}">
+    {% endfor %}
+</datalist>
+
+<!-- 6. Edit Modal -->
+<div class="modal fade" id="editAssetModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title"><i class="fas fa-pen me-2"></i> แก้ไขข้อมูล</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form action="/assets" method="POST">
+                    <input type="hidden" name="action" value="edit">
+                    <input type="hidden" name="id" id="edit_id">
+                    <div class="mb-3">
+                        <label class="fw-bold">วันที่</label>
+                        <!-- ใช้ class datepicker -->
+                        <input type="text" name="date" id="edit_date" class="form-control datepicker" placeholder="เลือกวันที่..." required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="fw-bold">ชื่อสินทรัพย์</label>
+                        <input class="form-control" list="assetOptions" name="name" id="edit_name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="fw-bold">หมวดหมู่</label>
+                        <select class="form-select" name="category" id="edit_category" required>
+                            {% for cat in categories %}<option value="{{ cat }}">{{ cat }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="fw-bold">มูลค่า</label>
+                        <input type="number" step="0.01" name="amount" id="edit_amount" class="form-control" required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-warning">บันทึกการแก้ไข</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 7. Delete Modal -->
+<div class="modal fade" id="deleteAssetModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fas fa-exclamation-triangle me-2"></i> ยืนยันการลบ</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>คุณต้องการลบรายการนี้ใช่หรือไม่?</p>
+                <ul class="list-group mb-3">
+                    <li class="list-group-item d-flex justify-content-between"><span>Date:</span><strong id="del_date_show"></strong></li>
+                    <li class="list-group-item d-flex justify-content-between"><span>Name:</span><strong id="del_name_show"></strong></li>
+                    <li class="list-group-item d-flex justify-content-between"><span>Amount:</span><strong id="del_amount_show"></strong></li>
+                </ul>
+                <form action="/assets" method="POST">
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="id" id="del_id">
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-danger">ยืนยันลบข้อมูล</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<!-- เพิ่ม Script Flatpickr -->
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script>
+    // รับข้อมูลจาก Python
+    const allData = {{ asset_records | tojson | default('[]') }};
+    const chartData = {{ chart_data | tojson | default('{}') }};
+    
+    let currentPage = 1;
+    let rowsPerPage = 10;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // 1. Initialize Flatpickr (ปฏิทิน)
+        // altInput: แสดงผล d/m/Y แต่ค่าจริงๆ เป็น Y-m-d
+        flatpickr(".datepicker", {
+            dateFormat: "Y-m-d",
+            altInput: true,
+            altFormat: "d/m/Y",
+            defaultDate: new Date() // ตั้งค่าเริ่มต้นเป็นวันนี้
+        });
+
+        // 2. Render Table
+        renderTable();
+        
+        // 3. Render Chart
+        if (chartData.datasets && chartData.datasets.length > 0) {
+            const ctx = document.getElementById('assetLineChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: chartData,
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: {position:'bottom'}, title: {display:false} }, scales: { y: {beginAtZero: true} } }
+            });
+        }
+    });
+
+    // --- Helper Functions ---
+    function getCategoryColor(category) {
+        const colors = ['bg-primary', 'bg-success', 'bg-danger', 'bg-warning text-dark', 'bg-info text-dark', 'bg-secondary', 'bg-dark'];
+        let hash = 0;
+        for (let i = 0; i < category.length; i++) hash = category.charCodeAt(i) + ((hash << 5) - hash);
+        const index = Math.abs(hash) % colors.length;
+        return colors[index];
+    }
+
+    function changeRowsPerPage() { rowsPerPage = parseInt(document.getElementById('rowsPerPage').value); currentPage=1; renderTable(); }
+    function changePage(p) { currentPage = p; renderTable(); }
+    
+    function renderTable() {
+        const tbody = document.getElementById('tableBody');
+        tbody.innerHTML = '';
+        if(allData.length===0) { 
+            tbody.innerHTML='<tr><td colspan="5" class="text-center py-4 text-muted">ไม่พบข้อมูลสินทรัพย์</td></tr>'; 
+            document.getElementById('showingInfo').innerText = '0 รายการ';
+            document.getElementById('paginationControls').innerHTML = '';
+            return; 
+        }
+
+        const totalPages = Math.ceil(allData.length/rowsPerPage);
+        if(currentPage>totalPages) currentPage=totalPages; if(currentPage<1) currentPage=1;
+        const start = (currentPage-1)*rowsPerPage;
+        const end = start+rowsPerPage;
+        const pageData = allData.slice(start, end);
+
+        pageData.forEach(item => {
+            const badgeClass = getCategoryColor(item.category);
+            const amountFormatted = parseFloat(item.amount).toLocaleString('en-US', {minimumFractionDigits:2});
+            const row = `<tr>
+                <td class="ps-3">${item.date}</td>
+                <td><span class="fw-bold text-primary">${item.name}</span></td>
+                <td><span class="badge ${badgeClass} rounded-pill px-3">${item.category}</span></td>
+                <td class="text-end pe-3 fw-bold">${amountFormatted}</td>
+                <td class="text-center">
+                    <button class="btn btn-sm btn-outline-warning border-0" onclick="openEditModal('${item.id}','${item.date}','${item.name}','${item.category}','${item.amount}')" title="แก้ไข"><i class="fas fa-pen"></i></button>
+                    <button class="btn btn-sm btn-outline-danger border-0" onclick="openDeleteModal('${item.id}','${item.date}','${item.name}','${item.amount}')" title="ลบ"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>`;
+            tbody.innerHTML += row;
+        });
+        
+        document.getElementById('showingInfo').innerText = `แสดง ${start+1}-${Math.min(end, allData.length)} จาก ${allData.length}`;
+        
+        let pagHTML = '';
+        if(totalPages>1) {
+            pagHTML += `<li class="page-item ${currentPage===1?'disabled':''}"><a class="page-link" href="#" onclick="changePage(${currentPage-1})">«</a></li>`;
+            for(let i=1; i<=totalPages; i++) {
+                if(i===1 || i===totalPages || (i>=currentPage-1 && i<=currentPage+1)) {
+                    pagHTML += `<li class="page-item ${i===currentPage?'active':''}"><a class="page-link" href="#" onclick="changePage(${i})">${i}</a></li>`;
+                } else if(i===currentPage-2 || i===currentPage+2) {
+                    pagHTML += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+                }
+            }
+            pagHTML += `<li class="page-item ${currentPage===totalPages?'disabled':''}"><a class="page-link" href="#" onclick="changePage(${currentPage+1})">»</a></li>`;
+        }
+        document.getElementById('paginationControls').innerHTML = pagHTML;
+    }
+
+    function addBulkRow() {
+        const tbody = document.getElementById('bulkTableBody');
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><input class="form-control form-control-sm" list="assetOptions" name="name[]" placeholder="ชื่อสินทรัพย์" required></td>
+            <td>
+                <select class="form-select form-select-sm" name="category[]" required>
+                    <option value="" selected disabled>หมวดหมู่</option>
+                    {% for cat in categories %}<option value="{{ cat }}">{{ cat }}</option>{% endfor %}
+                </select>
+            </td>
+            <td><input type="number" step="0.01" name="amount[]" class="form-control form-control-sm" placeholder="0.00" required></td>
+            <td class="text-center">
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeBulkRow(this)"><i class="fas fa-times"></i></button>
+            </td>`;
+        tbody.appendChild(row);
+    }
+    function removeBulkRow(btn) {
+        const row = btn.closest('tr');
+        if(document.querySelectorAll('#bulkTableBody tr').length > 1) row.remove();
+        else alert('ต้องมีอย่างน้อย 1 รายการ');
+    }
+
+    function openEditModal(id, d, n, c, a) {
+        // แปลงวันที่ DD/MM/YYYY เป็น YYYY-MM-DD เพื่อให้ Flatpickr เข้าใจ
+        let formattedDate = d; 
+        if (d.includes('/')) {
+            const parts = d.split('/');
+            if (parts.length === 3) {
+                formattedDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+            }
+        }
+        document.getElementById('edit_id').value=id;
+        document.getElementById('edit_name').value=n;
+        document.getElementById('edit_category').value=c;
+        document.getElementById('edit_amount').value=a;
+        
+        // อัปเดตค่าใน Flatpickr
+        const editDatePicker = document.querySelector("#edit_date")._flatpickr;
+        if (editDatePicker) {
+            editDatePicker.setDate(formattedDate);
+        } else {
+            document.getElementById('edit_date').value = formattedDate;
+        }
+
+        new bootstrap.Modal(document.getElementById('editAssetModal')).show();
+    }
+
+    function openDeleteModal(id, d, n, a) {
+        document.getElementById('del_id').value=id;
+        document.getElementById('del_date_show').innerText=d;
+        document.getElementById('del_name_show').innerText=n;
+        document.getElementById('del_amount_show').innerText=parseFloat(a).toLocaleString();
+        new bootstrap.Modal(document.getElementById('deleteAssetModal')).show();
+    }
+
+    let currentSortCol = -1;
+    let currentSortDir = 'asc';
+    function sortTable(n) {
+        const keys = ['date', 'name', 'category', 'amount'];
+        const key = keys[n];
+        if (currentSortCol === n) currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
+        else { currentSortCol = n; currentSortDir = 'asc'; }
+
+        allData.sort((a, b) => {
+            let valA = a[key], valB = b[key];
+            if (n === 0) { 
+                const partsA = valA.split('/');
+                const partsB = valB.split('/');
+                valA = new Date(`${partsA[2]}-${partsA[1]}-${partsA[0]}`).getTime() || 0; 
+                valB = new Date(`${partsB[2]}-${partsB[1]}-${partsB[0]}`).getTime() || 0; 
+            }
+            else if (n === 3) { valA = parseFloat(valA); valB = parseFloat(valB); }
+            else { valA = valA.toString().toLowerCase(); valB = valB.toString().toLowerCase(); }
+            
+            if (valA < valB) return currentSortDir === 'asc' ? -1 : 1;
+            if (valA > valB) return currentSortDir === 'asc' ? 1 : -1;
+            return 0;
+        });
+        renderTable();
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h3><i class="fas fa-cog text-secondary"></i> ตั้งค่าระบบ (Settings)</h3>
+    <p class="text-muted">จัดการเปิด/ปิด และกำหนดสัดส่วนเป้าหมาย (Target Allocation)</p>
+</div>
+
+<!-- Flash Messages -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<div class="row g-4">
+    
+    <!-- 1. หมวดหมู่ (Categories) -->
+    <div class="col-md-7">
+        <div class="card border-0 shadow-sm h-100"> <!-- h-100 เพื่อให้การ์ดยืดเท่ากัน -->
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-tags me-2"></i> ประเภทสินทรัพย์ & เป้าหมาย (%)</span>
+                <button class="btn btn-sm btn-outline-light" onclick="sortList('categoryList', this)" title="เรียงตามตัวอักษร">
+                    <i class="fas fa-sort-alpha-down"></i>
+                </button>
+            </div>
+            <div class="card-body">
+                <!-- Progress Bar -->
+                <div class="mb-3 p-3 rounded border bg-light shadow-sm">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <small class="fw-bold text-secondary">Total Target</small>
+                        <span class="fw-bold {{ 'text-success' if total_target == 100 else 'text-warning' }}">
+                            {{ "{:.2f}".format(total_target) }}% / 100%
+                        </span>
+                    </div>
+                    <div class="progress" style="height: 8px;">
+                        <div class="progress-bar {{ 'bg-success' if total_target == 100 else 'bg-warning' }}" 
+                             style="width: {{ total_target if total_target <= 100 else 100 }}%"></div>
+                    </div>
+                </div>
+
+                <form action="/settings" method="POST" class="d-flex gap-2 mb-3">
+                    <input type="hidden" name="action" value="add">
+                    <input type="hidden" name="type" value="category">
+                    <input type="text" name="value" class="form-control" placeholder="เพิ่มหมวดหมู่ใหม่..." required>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i></button>
+                </form>
+
+                <!-- 🔥 ใช้ max-height: 60vh แทน height 🔥 -->
+                <div style="max-height: 60vh; overflow-y: auto; border: 1px solid #eee; border-radius: 5px;">
+                    <ul id="categoryList" class="list-group list-group-flush">
+                        {% for cat in categories %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center gap-2" data-name="{{ cat.name }}">
+                            <div class="d-flex align-items-center gap-2 flex-grow-1">
+                                <form action="/settings" method="POST" class="d-flex align-items-center">
+                                    <input type="hidden" name="action" value="toggle">
+                                    <input type="hidden" name="type" value="category">
+                                    <input type="hidden" name="value" value="{{ cat.name }}">
+                                    <div class="form-check form-switch m-0">
+                                        <input class="form-check-input" type="checkbox" onchange="this.form.submit()" {{ 'checked' if cat.active else '' }}>
+                                    </div>
+                                </form>
+                                <span class="{{ 'text-muted text-decoration-line-through' if not cat.active else 'fw-bold' }}">{{ cat.name }}</span>
+                            </div>
+                            <form action="/settings" method="POST" class="d-flex align-items-center gap-1" style="width: 130px;">
+                                <input type="hidden" name="action" value="update_target">
+                                <input type="hidden" name="type" value="category">
+                                <input type="hidden" name="value" value="{{ cat.name }}">
+                                <input type="number" name="target_percent" class="form-control text-center form-control-sm" 
+                                       step="0.01" value="{{ cat.target }}" {{ 'disabled' if not cat.active else '' }}>
+                                <button class="btn btn-outline-secondary btn-sm" type="submit"><i class="fas fa-save"></i></button>
+                            </form>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. รายชื่อสินทรัพย์ (Assets) -->
+    <div class="col-md-5">
+        <div class="card border-0 shadow-sm h-100"> <!-- h-100 เพื่อให้การ์ดยืดเท่ากัน -->
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-coins me-2"></i> รายชื่อสินทรัพย์</span>
+                <button class="btn btn-sm btn-outline-light" onclick="sortList('assetList', this)" title="เรียงตามตัวอักษร">
+                    <i class="fas fa-sort-alpha-down"></i>
+                </button>
+            </div>
+            <div class="card-body">
+                <form action="/settings" method="POST" class="d-flex gap-2 mb-3">
+                    <input type="hidden" name="action" value="add">
+                    <input type="hidden" name="type" value="asset">
+                    <input type="text" name="value" class="form-control" placeholder="เพิ่มสินทรัพย์ใหม่..." required>
+                    <button type="submit" class="btn btn-success"><i class="fas fa-plus"></i></button>
+                </form>
+
+                <!-- 🔥 ใช้ max-height: 60vh แทน height 🔥 -->
+                <div style="max-height: 60vh; overflow-y: auto; border: 1px solid #eee; border-radius: 5px;">
+                    <ul id="assetList" class="list-group list-group-flush">
+                        {% for asset in assets %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center" data-name="{{ asset.name }}">
+                            <span class="{{ 'text-muted text-decoration-line-through' if not asset.active else '' }}">{{ asset.name }}</span>
+                            <form action="/settings" method="POST">
+                                <input type="hidden" name="action" value="toggle">
+                                <input type="hidden" name="type" value="asset">
+                                <input type="hidden" name="value" value="{{ asset.name }}">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" onchange="this.form.submit()" {{ 'checked' if asset.active else '' }}>
+                                </div>
+                            </form>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function sortList(listId, btnElement) {
+    var list, i, switching, b, shouldSwitch, dir, switchcount = 0;
+    list = document.getElementById(listId);
+    switching = true;
+    dir = "asc"; 
+    var icon = btnElement.querySelector('i');
+    if (icon.classList.contains('fa-sort-alpha-down')) {
+        icon.classList.remove('fa-sort-alpha-down'); icon.classList.add('fa-sort-alpha-up');
+    } else {
+        icon.classList.remove('fa-sort-alpha-up'); icon.classList.add('fa-sort-alpha-down'); dir = "desc";
+    }
+    if (icon.classList.contains('fa-sort-alpha-up')) dir = "desc"; else dir = "asc";
+    while (switching) {
+        switching = false;
+        b = list.getElementsByTagName("LI");
+        for (i = 0; i < (b.length - 1); i++) {
+            shouldSwitch = false;
+            var x = b[i].getAttribute("data-name").toLowerCase();
+            var y = b[i + 1].getAttribute("data-name").toLowerCase();
+            if (dir == "asc") { if (x > y) { shouldSwitch = true; break; } } 
+            else if (dir == "desc") { if (x < y) { shouldSwitch = true; break; } }
+        }
+        if (shouldSwitch) {
+            b[i].parentNode.insertBefore(b[i + 1], b[i]);
+            switching = true;
+            switchcount++;
+        }
+    }
+}
+</script>
+{% endblock %}
