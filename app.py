@@ -16,7 +16,11 @@ from manager import (
     add_investment_records_bulk,
     delete_investment_record,
     update_investment_record,
-    get_investment_chart_data
+    get_investment_chart_data,
+    # Dividend functions
+    get_dividend_records, 
+    add_dividend_record, 
+    get_dividend_chart_data
 )
 from datetime import datetime
 
@@ -287,6 +291,50 @@ def settings():
                            categories=data['categories'], 
                            assets=data['assets'], 
                            total_target=total_target)
+
+@app.route('/dividends', methods=['GET', 'POST'])
+def dividends():
+    if request.method == 'POST':
+        action = request.form.get('action')
+        
+        if action == 'add':
+            data = {
+                'date': request.form.get('date'),
+                'name': request.form.get('name'),
+                'category': request.form.get('category'),
+                'amount': request.form.get('amount'),
+                'reinvested': 'Yes' if request.form.get('reinvested') else 'No',
+                'note': request.form.get('note')
+            }
+            if add_dividend_record(data): flash('บันทึกปันผลสำเร็จ!', 'success')
+            else: flash('บันทึกล้มเหลว', 'danger')
+            
+        return redirect(url_for('dividends'))
+
+    current_year = datetime.now().year
+    selected_year = int(request.args.get('year') or current_year)
+    year_options = list(range(current_year + 1, current_year - 5, -1))
+    filter_name = request.args.get('name')
+    
+    records = get_dividend_records(filter_name, selected_year)
+    chart_data = get_dividend_chart_data(records)
+    settings = get_settings(only_active=True)
+    
+    # คำนวณยอดสรุปง่ายๆ
+    total_div = sum(r['amount'] for r in records)
+    avg_div = total_div / 12 if total_div > 0 else 0
+    
+    return render_template('dividends.html',
+                           records=records,
+                           chart_data=chart_data,
+                           settings=settings, # ส่งไปใช้ใน Datalist
+                           categories=[c['name'] for c in settings['categories']],
+                           assets=[a['name'] for a in settings['assets']],
+                           selected_year=selected_year,
+                           year_options=year_options,
+                           selected_name=filter_name,
+                           total_div=total_div,
+                           avg_div=avg_div)
 
 if __name__ == '__main__':
     print("🌍 Starting Server at http://127.0.0.1:5000")
