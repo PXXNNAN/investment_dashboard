@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}Dividends{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="mb-0 text-warning"><i class="fas fa-hand-holding-usd"></i> เงินปันผล (Dividends)</h3>
+        <p class="text-muted small mb-0">ติดตามรายรับ Passive Income จากการลงทุน</p>
+    </div>
+    <button class="btn btn-warning text-dark fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#addDivModal">
+        <i class="fas fa-plus-circle me-2"></i> บันทึกปันผล
+    </button>
+</div>
+
+<!-- Summary Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card bg-warning text-dark border-0 shadow-sm h-100">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="mb-1 opacity-75">ปันผลรวมปีนี้ (Total Dividends)</h6>
+                    <h2 class="mb-0 fw-bold">฿{{ "{:,.2f}".format(total_div) }}</h2>
+                </div>
+                <i class="fas fa-coins fa-3x opacity-25"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card bg-dark text-white border-0 shadow-sm h-100">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="mb-1 opacity-75">เฉลี่ยรายเดือน (Monthly Avg)</h6>
+                    <h2 class="mb-0 fw-bold">฿{{ "{:,.2f}".format(avg_div) }}</h2>
+                </div>
+                <i class="fas fa-chart-line fa-3x opacity-25"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart -->
+<div class="card mb-4 border-0 shadow-sm">
+    <div class="card-body">
+        <div style="height: 250px;"><canvas id="divChart"></canvas></div>
+    </div>
+</div>
+
+<!-- Filter -->
+<div class="card mb-4 border-0 shadow-sm">
+    <div class="card-body bg-white rounded">
+        <form action="/dividends" method="GET" class="row g-3 align-items-end">
+            <div class="col-md-2">
+                <label class="small fw-bold text-muted">ปี</label>
+                <select name="year" class="form-select form-select-sm" onchange="this.form.submit()">
+                    {% for yr in year_options %}<option value="{{ yr }}" {{ 'selected' if yr == selected_year else '' }}>{{ yr }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="small fw-bold text-muted">ชื่อสินทรัพย์</label>
+                <select name="name" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">ทั้งหมด</option>
+                    {% for a in assets %}<option value="{{ a }}" {{ 'selected' if a == selected_name else '' }}>{{ a }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <a href="/dividends" class="btn btn-sm btn-outline-secondary w-100">Reset</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Table -->
+<div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-3">Date</th>
+                    <th>Asset</th>
+                    <th>Category</th>
+                    <th class="text-end">Amount</th>
+                    <th class="text-center">Reinvest?</th>
+                    <th>Note</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in records %}
+                <tr>
+                    <td class="ps-3 text-muted font-monospace">{{ item.date }}</td>
+                    <td class="fw-bold">{{ item.name }}</td>
+                    <td><span class="badge bg-light text-dark border">{{ item.category }}</span></td>
+                    <td class="text-end fw-bold text-success">+{{ "{:,.2f}".format(item.amount) }}</td>
+                    <td class="text-center">
+                        {% if item.reinvested == 'Yes' %}<span class="badge bg-success rounded-pill">Yes</span>{% else %}<span class="text-muted">-</span>{% endif %}
+                    </td>
+                    <td class="text-muted small">{{ item.note }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="text-center py-5 text-muted">ยังไม่มีรายการปันผล</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Add Modal -->
+<div class="modal fade" id="addDivModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title"><i class="fas fa-hand-holding-usd me-2"></i> บันทึกปันผลใหม่</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form action="/dividends" method="POST">
+                    <input type="hidden" name="action" value="add">
+                    <div class="mb-3">
+                        <label class="fw-bold">วันที่ได้รับ</label>
+                        <input type="text" name="date" class="form-control datepicker" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="fw-bold">สินทรัพย์</label>
+                        <input class="form-control" list="assetOptions" name="name" required placeholder="ค้นหา...">
+                        <datalist id="assetOptions">{% for a in assets %}<option value="{{ a }}">{% endfor %}</datalist>
+                    </div>
+                    <div class="mb-3">
+                        <label class="fw-bold">หมวดหมู่</label>
+                        <select name="category" class="form-select" required>
+                            <option value="" disabled selected>เลือก...</option>
+                            {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="fw-bold text-success">ยอดเงินสุทธิ (เข้าบัญชี)</label>
+                        <input type="number" step="0.01" name="amount" class="form-control fw-bold" required placeholder="0.00">
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="reinvestCheck" name="reinvested">
+                        <label class="form-check-label" for="reinvestCheck">นำไป Reinvest ต่อ?</label>
+                    </div>
+                    <div class="mb-3">
+                        <label class="fw-bold">Note</label>
+                        <input type="text" name="note" class="form-control">
+                    </div>
+                    <div class="d-grid"><button type="submit" class="btn btn-warning fw-bold">บันทึก</button></div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        flatpickr(".datepicker", { dateFormat: "Y-m-d", altInput: true, altFormat: "d/m/Y", defaultDate: new Date() });
+        
+        const chartData = {{ chart_data | tojson | default('{}') }};
+        if (chartData.datasets && chartData.datasets.length > 0) {
+            new Chart(document.getElementById('divChart').getContext('2d'), {
+                type: 'bar',
+                data: chartData,
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: {display:false} }, scales: { y: {beginAtZero: true} } }
+            });
+        }
+    });
+</script>
+{% endblock %}
