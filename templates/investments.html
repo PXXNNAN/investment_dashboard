@@ -25,18 +25,6 @@
   {% endif %}
 {% endwith %}
 
-<!-- 1. Chart -->
-<div class="card mb-4 border-0 shadow-sm">
-    <div class="card-header bg-white d-flex justify-content-between align-items-center">
-        <h6 class="mb-0 text-muted"><i class="fas fa-chart-bar me-2"></i>กระแสเงินสดรายเดือน (Monthly Cash Flow)</h6>
-    </div>
-    <div class="card-body">
-        <div style="height: 300px;">
-            <canvas id="investFlowChart"></canvas>
-        </div>
-    </div>
-</div>
-
 <!-- 2. Filter -->
 <div class="card mb-4 border-0 shadow-sm">
     <div class="card-body bg-white rounded">
@@ -84,6 +72,18 @@
                 </div>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- 1. Chart -->
+<div class="card mb-4 border-0 shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 text-muted"><i class="fas fa-chart-bar me-2"></i>กระแสเงินสดรายเดือน (Monthly Cash Flow)</h6>
+    </div>
+    <div class="card-body">
+        <div style="height: 300px;">
+            <canvas id="investFlowChart"></canvas>
+        </div>
     </div>
 </div>
 
@@ -199,7 +199,50 @@
 
 <!-- Edit & Delete Modals -->
 <div class="modal fade" id="editInvestModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header bg-warning text-dark"><h5 class="modal-title">แก้ไข</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body bg-light"><form action="/investments" method="POST"><input type="hidden" name="action" value="edit"><input type="hidden" name="id" id="edit_id"><div class="row g-3"><div class="col-md-6"><label class="fw-bold">Date</label><input type="text" name="date" id="edit_date" class="form-control datepicker" required></div><div class="col-md-6"><label class="fw-bold">Type</label><select name="type" id="edit_type" class="form-select" onchange="toggleFields('edit');calcTotal('edit');" required><option value="Buy">Buy</option><option value="Sell">Sell</option><option value="Deposit">Deposit</option><option value="Withdraw">Withdraw</option></select></div><div class="col-md-6"><label class="fw-bold">Asset</label><input class="form-control" list="assetOptions" name="name" id="edit_name" required></div><div class="col-md-6"><label class="fw-bold">Category</label><select name="category" id="edit_category" class="form-select" required>{% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select></div><div class="col-12" id="edit_trade_fields"><div class="card border-0 shadow-sm"><div class="card-body bg-white rounded"><div class="row g-3"><div class="col-md-6"><label class="small text-muted">Qty</label><input type="number" step="0.0001" name="quantity" id="edit_qty" class="form-control bg-light" oninput="calcTotal('edit')"></div><div class="col-md-6"><label class="small text-muted">Price</label><input type="number" step="0.01" name="price" id="edit_price" class="form-control bg-light" oninput="calcTotal('edit')"></div></div></div></div></div><div class="col-md-6"><label class="fw-bold">Total</label><input type="number" step="0.01" name="amount" id="edit_amount" class="form-control fw-bold text-end" required></div><div class="col-md-6"><label class="fw-bold">Note</label><input type="text" name="note" id="edit_note" class="form-control"></div></div><div class="mt-4 d-grid"><button type="submit" class="btn btn-warning">บันทึก</button></div></form></div></div></div></div>
-<div class="modal fade" id="deleteInvestModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header bg-danger text-white"><h5 class="modal-title">ลบ</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><p>ยืนยันลบ?</p><form action="/investments" method="POST"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" id="del_id"><div class="d-grid"><button type="submit" class="btn btn-danger">ยืนยัน</button></div></form></div></div></div></div>
+<div class="modal fade" id="deleteInvestModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fas fa-trash-alt me-2"></i> ยืนยันการลบ</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-4">
+                    <i class="fas fa-exclamation-circle text-danger fa-3x mb-3"></i>
+                    <p class="mb-0 text-muted">คุณต้องการลบรายการนี้ใช่หรือไม่?</p>
+                </div>
+                <div class="card border-0 bg-light">
+                    <div class="card-body">
+                        <div class="row mb-2">
+                            <div class="col-4 text-muted small">Date:</div>
+                            <div class="col-8 fw-bold" id="del_date_show"></div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-4 text-muted small">Action:</div>
+                            <div class="col-8 fw-bold" id="del_action_show"></div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-4 text-muted small">Asset:</div>
+                            <div class="col-8 fw-bold" id="del_name_show"></div>
+                        </div>
+                        <div class="row mb-0">
+                            <div class="col-4 text-muted small">Amount:</div>
+                            <div class="col-8 fw-bold" id="del_amount_show"></div>
+                        </div>
+                    </div>
+                </div>
+                <form action="/investments" method="POST" class="mt-4">
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="id" id="del_id">
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-danger fw-bold py-2">ยืนยันการลบ</button>
+                        <button type="button" class="btn btn-light text-muted" data-bs-dismiss="modal">ยกเลิก</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 
 {% endblock %}
 
@@ -251,7 +294,7 @@
                 <td class="text-center">
                     <div class="btn-group btn-group-sm">
                     <button class="btn btn-light text-warning" onclick="openEditModal('${item.id}','${item.date}','${item.action}','${item.name}','${item.category}','${item.qty}','${item.price}','${item.amount}','${item.note}')"><i class="fas fa-pen"></i></button>
-                    <button class="btn btn-light text-danger" onclick="openDeleteModal('${item.id}','${item.date}','${item.name}','${item.amount}')"><i class="fas fa-trash"></i></button>
+                    <button class="btn btn-light text-danger" onclick="openDeleteModal('${item.id}','${item.date}','${item.action}','${item.name}','${item.amount}')"><i class="fas fa-trash"></i></button>
                     </div>
                 </td>
             </tr>`;
@@ -342,8 +385,19 @@
         toggleFields('edit');
         new bootstrap.Modal(document.getElementById('editInvestModal')).show();
     }
-    function openDeleteModal(id, d, n, a) {
-        document.getElementById('del_id').value = id; document.getElementById('del_date_show').innerText = d; document.getElementById('del_name_show').innerText = n; document.getElementById('del_amount_show').innerText = parseFloat(a).toLocaleString();
+    function openDeleteModal(id, date, action, name, amount) {
+        document.getElementById('del_id').value = id;
+        document.getElementById('del_date_show').innerText = date;
+        document.getElementById('del_action_show').innerText = action;
+        document.getElementById('del_name_show').innerText = name;
+        document.getElementById('del_amount_show').innerText = parseFloat(amount).toLocaleString('en-US', {minimumFractionDigits: 2});
+        
+        // Color coding for action
+        const actionEl = document.getElementById('del_action_show');
+        if(action === 'Buy') actionEl.className = 'col-8 fw-bold text-success';
+        else if(action === 'Sell') actionEl.className = 'col-8 fw-bold text-danger';
+        else actionEl.className = 'col-8 fw-bold text-primary';
+
         new bootstrap.Modal(document.getElementById('deleteInvestModal')).show();
     }
     function sortTable(n) { /* sort logic */ }
