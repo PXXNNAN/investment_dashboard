@@ -20,35 +20,83 @@
 
 <div class="d-flex" id="wrapper">
 
-    <!-- 🔥 Sidebar: เพิ่ม class "d-flex flex-column" เพื่อจัด Layout แนวตั้ง 🔥 -->
+    <!-- Sidebar -->
     <div class="border-end d-flex flex-column" id="sidebar-wrapper">
         
-        <!-- 1. ส่วนหัวเมนู -->
         <div class="sidebar-heading"><i class="fas fa-coins me-2"></i> My Port</div>
         
-        <!-- 2. รายการเมนู -->
         <div class="list-group list-group-flush">
-            <a href="/" class="list-group-item list-group-item-action nav-link-custom {{ 'active' if request.path == '/' else '' }}">
-                <i class="fas fa-chart-pie me-2"></i> Dashboard
+            
+            <!-- 1. Dashboard (เปลี่ยนเป็นเมนูยืดหด) -->
+            <a class="list-group-item list-group-item-action nav-link-custom d-flex justify-content-between align-items-center collapsed" 
+               data-bs-toggle="collapse" href="#dashboardSubmenu" role="button" 
+               aria-expanded="{{ 'true' if request.path == '/' else 'false' }}">
+                <span><i class="fas fa-chart-pie me-2"></i> Dashboard</span>
+                <i class="fas fa-chevron-down chevron-icon"></i>
             </a>
-            <a href="/assets" class="list-group-item list-group-item-action nav-link-custom {{ 'active' if request.path == '/assets' else '' }}">
-                <i class="fas fa-wallet me-2"></i> Current Asset
+            
+            <!-- เมนูลูกของ Dashboard -->
+            <div class="collapse {{ 'show' if request.path == '/' else '' }}" id="dashboardSubmenu">
+                <div class="list-group-submenu">
+                    <a href="/" class="list-group-item list-group-item-action submenu-item {{ 'active-sub' if request.path == '/' else '' }}">
+                        <i class="fas fa-home me-2"></i> Overview
+                    </a>
+                    <a href="/dashboard/dividend-yoy" class="list-group-item list-group-item-action submenu-item">
+                        <i class="fas fa-chart-line me-2"></i> Dividend YoY
+                    </a> 
+                    <!-- ตัวอย่างเมนูอนาคต (comment ไว้ก่อน) -->
+                    <!-- 
+                    <a href="/dashboard/analytics" class="list-group-item list-group-item-action submenu-item">
+                        <i class="fas fa-chart-line me-2"></i> Analytics
+                    </a> 
+                    -->
+                </div>
+            </div>
+
+            <!-- 2. Portfolio (เมนูยืดหด) -->
+            <a class="list-group-item list-group-item-action nav-link-custom d-flex justify-content-between align-items-center collapsed" 
+               data-bs-toggle="collapse" href="#portfolioSubmenu" role="button" 
+               aria-expanded="{{ 'true' if request.path in ['/assets', '/investments', '/dividends'] else 'false' }}">
+                <span><i class="fas fa-briefcase me-2"></i> Portfolio</span>
+                <i class="fas fa-chevron-down chevron-icon"></i>
             </a>
-            <a href="/investments" class="list-group-item list-group-item-action nav-link-custom {{ 'active' if request.path == '/investments' else '' }}">
-                <i class="fas fa-exchange-alt me-2"></i> Investment
+            
+            <div class="collapse {{ 'show' if request.path in ['/assets', '/investments', '/dividends'] else '' }}" id="portfolioSubmenu">
+                <div class="list-group-submenu">
+                    <a href="/assets" class="list-group-item list-group-item-action submenu-item {{ 'active-sub' if request.path == '/assets' else '' }}">
+                        <i class="fas fa-wallet me-2"></i> Current Asset
+                    </a>
+                    <a href="/investments" class="list-group-item list-group-item-action submenu-item {{ 'active-sub' if request.path == '/investments' else '' }}">
+                        <i class="fas fa-exchange-alt me-2"></i> Investment
+                    </a>
+                    <a href="/dividends" class="list-group-item list-group-item-action submenu-item {{ 'active-sub' if request.path == '/dividends' else '' }}">
+                        <i class="fas fa-hand-holding-usd me-2"></i> Dividends
+                    </a>
+                </div>
+            </div>
+
+            <!-- 3. System (เมนูยืดหด) -->
+            <a class="list-group-item list-group-item-action nav-link-custom d-flex justify-content-between align-items-center collapsed" 
+               data-bs-toggle="collapse" href="#systemSubmenu" role="button" 
+               aria-expanded="{{ 'true' if request.path in ['/settings'] else 'false' }}">
+                <span><i class="fas fa-tools me-2"></i> System</span>
+                <i class="fas fa-chevron-down chevron-icon"></i>
             </a>
-            <a href="/dividends" class="list-group-item list-group-item-action nav-link-custom {{ 'active' if request.path == '/dividends' else '' }}">
-                 <i class="fas fa-hand-holding-usd me-2"></i> Dividends
-             </a>
-            <a href="/settings" class="list-group-item list-group-item-action nav-link-custom {{ 'active' if request.path == '/settings' else '' }}">
-                <i class="fas fa-cog me-2"></i> Settings
-            </a>
+            
+            <div class="collapse {{ 'show' if request.path in ['/settings'] else '' }}" id="systemSubmenu">
+                <div class="list-group-submenu">
+                    <a href="/settings" class="list-group-item list-group-item-action submenu-item {{ 'active-sub' if request.path == '/settings' else '' }}">
+                        <i class="fas fa-cog me-2"></i> Settings
+                    </a>
+                </div>
+            </div>
+
         </div>
 
-        <!-- 🔥 3. ส่วนแสดงเวอร์ชัน (ใช้ mt-auto ดันลงล่างสุด) 🔥 -->
+        <!-- Footer Version -->
         <div class="mt-auto p-3 text-center text-white-50" style="border-top: 1px solid rgba(255,255,255,0.1);">
             <small style="font-size: 0.75rem; display: block; opacity: 0.7;">Investment Dashboard</small>
-            <span class="fw-bold" style="font-size: 0.85rem; letter-spacing: 1px;">v1.0.0</span>
+            <span class="fw-bold" style="font-size: 0.85rem; letter-spacing: 1px;">v1.0.2</span>
         </div>
 
     </div>
@@ -67,8 +115,7 @@
         </nav>
 
         <div class="container-fluid px-4 py-4">
-            {% block content %}
-            {% endblock %}
+            {% block content %}{% endblock %}
         </div>
     </div>
 </div>
@@ -79,27 +126,25 @@
     document.addEventListener("DOMContentLoaded", function() {
         var el = document.getElementById("wrapper");
         var toggleButton = document.getElementById("menu-toggle");
-
-        toggleButton.onclick = function () {
-            el.classList.toggle("toggled");
-        };
-
+        toggleButton.onclick = function () { el.classList.toggle("toggled"); };
+        
         const loader = document.getElementById('loading-overlay');
-        const navLinks = document.querySelectorAll('.nav-link-custom');
-
+        const navLinks = document.querySelectorAll('a.list-group-item'); // ดักจับทุกลิงก์ในเมนู
+        
         navLinks.forEach(link => {
             link.addEventListener('click', function(e) {
+                // ถ้าเป็นปุ่ม Toggle Collapse ไม่ต้องโชว์ Loading
+                if (this.getAttribute('data-bs-toggle') === 'collapse') return;
+                
                 const currentUrl = window.location.origin + window.location.pathname;
-                if (this.href !== currentUrl && this.href !== window.location.href) {
+                if (this.href !== currentUrl && this.href !== window.location.href && this.href !== '#' && !this.href.includes('#')) {
                     loader.style.display = 'flex';
                 }
             });
         });
 
         window.addEventListener('pageshow', function(event) {
-            if (event.persisted) {
-                loader.style.display = 'none';
-            }
+            if (event.persisted) loader.style.display = 'none';
         });
     });
 </script>

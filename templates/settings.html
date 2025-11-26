@@ -45,7 +45,7 @@
                     </div>
                 </div>
 
-                <form action="/settings" method="POST" class="d-flex gap-2 mb-3">
+                <form action="/settings" method="POST" class="d-flex gap-2 mb-3" onsubmit="showLoading()">
                     <input type="hidden" name="action" value="add">
                     <input type="hidden" name="type" value="category">
                     <input type="text" name="value" class="form-control" placeholder="เพิ่มหมวดหมู่ใหม่..." required>
@@ -58,17 +58,17 @@
                         {% for cat in categories %}
                         <li class="list-group-item d-flex justify-content-between align-items-center gap-2" data-name="{{ cat.name }}">
                             <div class="d-flex align-items-center gap-2 flex-grow-1">
-                                <form action="/settings" method="POST" class="d-flex align-items-center">
+                                <form action="/settings" method="POST" class="d-flex align-items-center" onsubmit="showLoading()">
                                     <input type="hidden" name="action" value="toggle">
                                     <input type="hidden" name="type" value="category">
                                     <input type="hidden" name="value" value="{{ cat.name }}">
                                     <div class="form-check form-switch m-0">
-                                        <input class="form-check-input" type="checkbox" onchange="this.form.submit()" {{ 'checked' if cat.active else '' }}>
+                                        <input class="form-check-input" type="checkbox" onchange="showLoading(); this.form.submit()" {{ 'checked' if cat.active else '' }}>
                                     </div>
                                 </form>
                                 <span class="{{ 'text-muted text-decoration-line-through' if not cat.active else 'fw-bold' }}">{{ cat.name }}</span>
                             </div>
-                            <form action="/settings" method="POST" class="d-flex align-items-center gap-1" style="width: 130px;">
+                            <form action="/settings" method="POST" class="d-flex align-items-center gap-1" style="width: 130px;" onsubmit="showLoading()">
                                 <input type="hidden" name="action" value="update_target">
                                 <input type="hidden" name="type" value="category">
                                 <input type="hidden" name="value" value="{{ cat.name }}">
@@ -94,7 +94,7 @@
                 </button>
             </div>
             <div class="card-body">
-                <form action="/settings" method="POST" class="d-flex gap-2 mb-3">
+                <form action="/settings" method="POST" class="d-flex gap-2 mb-3" onsubmit="showLoading()">
                     <input type="hidden" name="action" value="add">
                     <input type="hidden" name="type" value="asset">
                     <input type="text" name="value" class="form-control" placeholder="เพิ่มสินทรัพย์ใหม่..." required>
@@ -112,7 +112,7 @@
                                 <input type="hidden" name="type" value="asset">
                                 <input type="hidden" name="value" value="{{ asset.name }}">
                                 <div class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" onchange="this.form.submit()" {{ 'checked' if asset.active else '' }}>
+                                    <input class="form-check-input" type="checkbox" onchange="showLoading(); this.form.submit()" {{ 'checked' if asset.active else '' }}>
                                 </div>
                             </form>
                         </li>
@@ -126,6 +126,14 @@
 </div>
 
 <script>
+// ฟังก์ชันเรียก Loading Overlay (จาก base.html)
+function showLoading() {
+    const loader = document.getElementById('loading-overlay');
+    if (loader) {
+        loader.style.display = 'flex';
+    }
+}
+
 function sortList(listId, btnElement) {
     var list, i, switching, b, shouldSwitch, dir, switchcount = 0;
     list = document.getElementById(listId);

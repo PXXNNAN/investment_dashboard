@@ -7,7 +7,7 @@ body {
     background-color: #f4f6f9;
 }
 
-/* --- Sidebar Styles (เมนูเลื่อน) --- */
+/* --- Sidebar Styles --- */
 #wrapper {
     display: flex;
     width: 100%;
@@ -20,10 +20,11 @@ body {
     transition: margin .25s ease-out;
     width: 250px;
     background-color: #2c3e50;
-    position: fixed; /* Fix ให้เมนูอยู่กับที่ */
+    position: fixed;
     z-index: 1000;
     height: 100%;
     overflow-y: auto;
+    overflow-x: hidden; /* 🔥 ป้องกันการเลื่อนซ้ายขวาที่อาจบังไอคอน 🔥 */
 }
 
 #sidebar-wrapper .sidebar-heading {
@@ -39,12 +40,18 @@ body {
     width: 250px;
 }
 
+/* เมนูหลัก */
 #sidebar-wrapper .list-group-item {
     background-color: transparent;
     color: #cfd8dc;
     border: none;
     padding: 1rem 1.5rem;
     border-left: 4px solid transparent;
+    cursor: pointer;
+    /* 🔥 จัด layout ให้ยืดหยุ่นและไม่เบียดเกินไป 🔥 */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 #sidebar-wrapper .list-group-item:hover {
@@ -52,44 +59,79 @@ body {
     color: #fff;
 }
 
+/* Active State */
 #sidebar-wrapper .list-group-item.active {
     background-color: #34495e;
-    color: #3498db; /* สีตัวหนังสือฟ้า */
+    color: #3498db;
     font-weight: 600;
-    border-left: 4px solid #3498db; /* แถบสีฟ้าด้านซ้าย */
+    border-left: 4px solid #3498db;
+}
+
+/* --- Submenu Styles --- */
+.list-group-submenu {
+    background-color: #1e2b37;
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
+}
+
+.submenu-item {
+    padding-left: 3rem !important;
+    font-size: 0.9rem;
+    border-left: none !important;
+    color: #b0bec5 !important;
+    display: block !important; /* เมนูย่อยให้เป็น Block ปกติ */
+}
+
+.submenu-item:hover {
+    background-color: rgba(255,255,255,0.05) !important;
+    color: #fff !important;
+}
+
+.submenu-item.active-sub {
+    color: #3498db !important;
+    font-weight: 600;
+    background-color: rgba(52, 152, 219, 0.1) !important;
+}
+
+/* 🔥 ปรับลูกศรให้ขยับเข้ามาจากขอบขวา 🔥 */
+.chevron-icon {
+    transition: transform 0.3s ease;
+    font-size: 0.8rem;
+    margin-right: 20px; /* ขยับเข้ามา 10px ไม่ให้ตกขอบ */
+    min-width: 16px; /* กันไอคอนบี้ */
+}
+
+/* หมุนลูกศร */
+a[aria-expanded="true"] .chevron-icon {
+    transform: rotate(180deg);
 }
 
 /* --- Page Content Styles --- */
 #page-content-wrapper {
     width: 100%;
-    margin-left: 0; 
+    margin-left: 0;
     transition: margin .25s ease-out;
 }
 
-/* สถานะเมนู */
 #wrapper.toggled #sidebar-wrapper {
-    margin-left: 0; /* แสดงเมนู */
+    margin-left: 0;
 }
 
-/* Responsive: จอใหญ่ (Desktop) */
 @media (min-width: 768px) {
     #sidebar-wrapper {
-        margin-left: 0; /* ปกติเปิดเมนู */
+        margin-left: 0;
         position: sticky;
         top: 0;
     }
-
     #page-content-wrapper {
         min-width: 0;
         width: 100%;
     }
-
     #wrapper.toggled #sidebar-wrapper {
-        margin-left: -250px; /* ซ่อนเมนูเมื่อกดปิด */
+        margin-left: -250px;
     }
 }
 
-/* ปุ่มเมนู */
+/* Loading & Button */
 .btn-primary-custom {
     background-color: #2c3e50;
     border-color: #2c3e50;
@@ -100,7 +142,6 @@ body {
     color: white;
 }
 
-/* --- Loading Overlay (หน้าโหลด) --- */
 #loading-overlay {
     position: fixed;
     top: 0;
@@ -109,20 +150,18 @@ body {
     height: 100%;
     background-color: rgba(255, 255, 255, 0.9);
     z-index: 9999;
-    display: none; /* ซ่อนไว้ก่อน */
+    display: none;
     justify-content: center;
     align-items: center;
     flex-direction: column;
     backdrop-filter: blur(2px);
 }
-
 .loading-text {
     margin-top: 15px;
     color: #2c3e50;
     font-weight: 500;
     animation: pulse 1.5s infinite;
 }
-
 @keyframes pulse {
     0% { opacity: 0.6; }
     50% { opacity: 1; }

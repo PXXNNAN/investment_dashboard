@@ -540,3 +540,42 @@ def get_dashboard_data(start_date_str=None, end_date_str=None):
     except Exception as e:
         print(f"❌ Error in manager.py: {e}")
         return None
+    
+# 🔥 ฟังก์ชันใหม่: วิเคราะห์ปันผล (รายปี / รายเดือน) 🔥
+def get_dividend_analysis_data(mode='yearly', filter_name=None):
+    try:
+        client = get_client()
+        sheet = client.open(SHEET_NAME)
+        ws = sheet.worksheet("Dividends")
+        raw_data = ws.get_all_records()
+        data_map = defaultdict(float)
+        for item in raw_data:
+            clean_item = {clean_key(k): v for k, v in item.items()}
+            amount = parse_amount(clean_item.get('Dividend Amount') or clean_item.get('Amount'))
+            date_val = parse_date(clean_item.get('Date') or clean_item.get('date'))
+            name = str(clean_item.get('Asset Name') or clean_item.get('Asset') or '').strip()
+            
+            # Filter by Name
+            if filter_name and filter_name.lower() not in name.lower(): continue
+            
+            if date_val:
+                if mode == 'monthly': key = date_val.strftime("%Y-%m")
+                else: key = date_val.strftime("%Y")
+                data_map[key] += amount
+        sorted_keys = sorted(data_map.keys())
+        labels = []
+        data = []
+        for k in sorted_keys:
+            if mode == 'monthly':
+                dt = datetime.strptime(k, "%Y-%m")
+                labels.append(dt.strftime("%b %Y"))
+            else: labels.append(k)
+            data.append(data_map[k])
+        if mode == 'monthly':
+            bg_color = 'rgba(255, 193, 7, 0.6)'
+            border_color = '#ffc107'
+        else:
+            bg_color = ['rgba(255, 99, 132, 0.7)', 'rgba(54, 162, 235, 0.7)', 'rgba(255, 206, 86, 0.7)', 'rgba(75, 192, 192, 0.7)', 'rgba(153, 102, 255, 0.7)', 'rgba(255, 159, 64, 0.7)']
+            border_color = '#fff'
+        return {'labels': labels, 'datasets': [{'label': f'Dividend Income ({filter_name if filter_name else "Total"})', 'data': data, 'backgroundColor': bg_color, 'borderColor': border_color, 'borderWidth': 1}]}
+    except: return {'labels': [], 'datasets': []}
