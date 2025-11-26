@@ -19,7 +19,7 @@ from manager import (
     get_dividend_records,
     add_dividend_record,
     get_dividend_chart_data,
-    get_dividend_analysis_data
+    get_dividend_analysis_data,
 )
 from datetime import datetime
 
@@ -141,8 +141,19 @@ def dividends():
 @app.route('/dashboard/dividend-yoy')
 def dashboard_dividend_yoy():
     mode = request.args.get('mode', 'yearly')
-    chart_data = get_dividend_analysis_data(mode)
-    return render_template('dashboard_dividend.html', chart_data=chart_data, selected_mode=mode)
+    filter_name = request.args.get('name')
+    
+    chart_data = get_dividend_analysis_data(mode, filter_name)
+    
+    # ดึง Assets เพื่อทำ Dropdown
+    settings = get_settings(only_active=True)
+    assets = [a['name'] for a in settings['assets']]
+    
+    return render_template('dashboard_dividend.html', 
+                           chart_data=chart_data, 
+                           selected_mode=mode,
+                           selected_name=filter_name,
+                           assets=assets)
 
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():
