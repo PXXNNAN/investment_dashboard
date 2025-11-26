@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}Dividend Analysis{% endblock %}
+
+{% block content %}
+<div class="text-center mb-4">
+    <h2 class="fw-bold text-warning"><i class="fas fa-chart-line me-2"></i> วิเคราะห์เงินปันผล (Dividend Analysis)</h2>
+    <h5 class="text-muted">- ติดตามการเติบโตและกระแสเงินสด -</h5>
+</div>
+
+<!-- 🔥 Filter Controls (Mode & Asset) 🔥 -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body d-flex justify-content-center align-items-center gap-3 bg-light rounded">
+        
+        <!-- Mode Toggle -->
+        <div class="btn-group" role="group">
+            <a href="/dashboard/dividend-yoy?mode=yearly&name={{ selected_name or '' }}" class="btn {{ 'btn-primary' if selected_mode == 'yearly' else 'btn-outline-primary' }}">
+                <i class="fas fa-calendar me-1"></i> รายปี (Yearly)
+            </a>
+            <a href="/dashboard/dividend-yoy?mode=monthly&name={{ selected_name or '' }}" class="btn {{ 'btn-primary' if selected_mode == 'monthly' else 'btn-outline-primary' }}">
+                <i class="fas fa-calendar-alt me-1"></i> รายเดือน (Monthly)
+            </a>
+        </div>
+
+        <!-- Asset Filter -->
+        <form action="/dashboard/dividend-yoy" method="GET" class="d-flex align-items-center gap-2" onsubmit="showLoading()">
+            <input type="hidden" name="mode" value="{{ selected_mode }}">
+            <label class="fw-bold text-secondary">Asset:</label>
+            <select name="name" class="form-select form-select-sm" onchange="this.form.submit()" style="min-width: 200px;">
+                <option value="">ทั้งหมด (All Assets)</option>
+                {% for asset in assets %}
+                    <option value="{{ asset }}" {{ 'selected' if asset == selected_name else '' }}>{{ asset }}</option>
+                {% endfor %}
+            </select>
+        </form>
+
+    </div>
+</div>
+
+<!-- 1. กราฟ -->
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3">
+                <h6 class="mb-0 fw-bold text-secondary">
+                    <i class="fas fa-chart-bar me-2"></i> 
+                    {{ 'สรุปยอดรวมรายปี (Annual Total)' if selected_mode == 'yearly' else 'ไทม์ไลน์รายเดือน (Monthly Timeline)' }}
+                    <span class="text-primary">({{ selected_name if selected_name else 'All Assets' }})</span>
+                </h6>
+            </div>
+            <div class="card-body">
+                <div style="height: 400px;">
+                    <canvas id="analysisChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 2. ตาราง -->
+<div class="row justify-content-center mt-4 mb-5">
+    <div class="col-md-10">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                    <table class="table table-hover text-center mb-0 align-middle">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th class="py-3">ช่วงเวลา (Time)</th>
+                                <th>ยอดปันผล (Amount)</th>
+                                <th>เติบโต (Growth)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% set ns = namespace(prev=0) %}
+                            {% for i in range(chart_data.labels|length) %}
+                                {% set curr = chart_data.datasets[0].data[i] %}
+                                <tr>
+                                    <td class="fw-bold text-secondary">{{ chart_data.labels[i] }}</td>
+                                    <td class="text-success fw-bold fs-5">฿{{ "{:,.2f}".format(curr) }}</td>
+                                    <td>
+                                        {% if ns.prev > 0 %}
+                                            {% set growth = ((curr - ns.prev) / ns.prev) * 100 %}
+                                            <span class="badge rounded-pill px-3 {{ 'bg-success' if growth > 0 else 'bg-danger' }}">
+                                                {{ "{:+.2f}%".format(growth) }}
+                                            </span>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% set ns.prev = curr %}
+                            {% else %}
+                                <tr><td colspan="3" class="text-muted py-4">ยังไม่มีข้อมูลปันผล</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+function showLoading() {
+    const loader = document.getElementById('loading-overlay');
+    if (loader) {
+        loader.style.display = 'flex';
+    }
+}
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const chartData = {{ chart_data | tojson | default('{}') }};
+        const mode = '{{ selected_mode }}';
+        
+        if (chartData.datasets && chartData.datasets.length > 0) {
+            const ctx = document.getElementById('analysisChart').getContext('2d');
+            new Chart(ctx, {
+                type: mode === 'monthly' ? 'line' : 'bar',
+                data: chartData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ' ฿' + new Intl.NumberFormat('en-US').format(context.raw);
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#f0f0f0' } },
+                        x: { grid: { display: false } }
+                    },
+                    elements: {
+                        line: {
+                            fill: mode === 'monthly',
+                            tension: 0.4
+                        }
+                    }
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

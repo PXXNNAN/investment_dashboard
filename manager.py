@@ -108,20 +108,15 @@ def get_asset_records(filter_name=None, filter_category=None, filter_year=None):
             category = str(clean_item.get('Category') or '').strip()
             date_val = str(clean_item.get('Date') or clean_item.get('date') or '').strip()
             amount = parse_amount(clean_item.get('Amount', 0))
-            
             dt_obj = parse_date(date_val)
-            
             if filter_name and filter_name.lower() not in name.lower(): continue
             if filter_category and filter_category != "" and filter_category != category: continue
             if filter_year and dt_obj:
                 if dt_obj.year != int(filter_year): continue
             if filter_year and not dt_obj: continue
-            
             display_date = date_val
             if dt_obj: display_date = dt_obj.strftime("%d/%m/%Y")
-
             records.append({'id': record_id, 'date': display_date, 'name': name, 'category': category, 'amount': amount, 'dt_obj': dt_obj})
-        
         records.sort(key=lambda x: x['dt_obj'] if x['dt_obj'] else datetime.min, reverse=True)
         for r in records: 
             if 'dt_obj' in r: del r['dt_obj']
@@ -154,7 +149,6 @@ def get_asset_chart_data(records):
             datasets.append({'label': asset_name, 'data': data_points, 'borderColor': colors[i % len(colors)], 'backgroundColor': colors[i % len(colors)], 'fill': False, 'tension': 0.4})
         return {'labels': months, 'datasets': datasets}
     except Exception as e:
-        print(f"❌ Error preparing chart: {e}")
         return {'labels': [], 'datasets': []}
 
 def add_asset_record(date, amount, description, category):
@@ -229,7 +223,6 @@ def get_latest_portfolio_value():
     except: return 0.0
 
 # --- Investment Records Functions ---
-
 def get_investment_records(filter_name=None, filter_category=None, filter_year=None, filter_action=None):
     try:
         client = get_client()
@@ -304,33 +297,13 @@ def add_investment_records_bulk(records):
         client = get_client()
         sheet = client.open(SHEET_NAME)
         ws = sheet.worksheet("Investment")
-        
         rows_to_add = []
         for rec in records:
             new_id = str(uuid.uuid4())
-            # Clean Qty/Price empty strings to 0 or proper value
-            q = rec.get('qty', '')
-            p = rec.get('price', '')
-            
-            rows_to_add.append([
-                new_id, 
-                rec['date'], 
-                rec['action'], 
-                rec['name'], 
-                rec['category'], 
-                q, 
-                p, 
-                rec['amount'], 
-                rec.get('note', '')
-            ])
-            
-        try:
-            ws.append_rows(rows_to_add)
-            return True
-        except:
-            # Fallback Loop
-            for row in rows_to_add:
-                ws.append_row(row)
+            rows_to_add.append([new_id, rec['date'], rec['action'], rec['name'], rec['category'], rec['qty'], rec['price'], rec['amount'], rec['note']])
+        try: ws.append_rows(rows_to_add); return True
+        except: 
+            for row in rows_to_add: ws.append_row(row)
             return True
     except Exception as e:
         print(f"❌ Error bulk adding investment: {e}")
@@ -358,6 +331,66 @@ def update_investment_record(record_id, data):
         return False
     except: return False
 
+# --- 🔥 Dividends Functions (เติมกลับมาให้แล้วครับ) 🔥 ---
+def get_dividend_records(filter_name=None, filter_year=None):
+    try:
+        client = get_client()
+        sheet = client.open(SHEET_NAME)
+        ws = sheet.worksheet("Dividends")
+        raw_data = ws.get_all_records()
+        records = []
+        for item in raw_data:
+            clean_item = {clean_key(k): v for k, v in item.items()}
+            record_id = str(clean_item.get('ID') or '').strip()
+            date_val = str(clean_item.get('Date') or clean_item.get('date') or '').strip()
+            name = str(clean_item.get('Asset Name') or clean_item.get('Asset') or '').strip()
+            category = str(clean_item.get('Category') or '').strip()
+            amount = parse_amount(clean_item.get('Dividend Amount') or clean_item.get('Amount'))
+            reinvested = str(clean_item.get('Reinvested') or 'No').strip()
+            note = str(clean_item.get('Note') or '').strip()
+            dt_obj = parse_date(date_val)
+            
+            if filter_name and filter_name.lower() not in name.lower(): continue
+            if filter_year and dt_obj:
+                if dt_obj.year != int(filter_year): continue
+            if filter_year and not dt_obj: continue
+
+            display_date = date_val
+            if dt_obj: display_date = dt_obj.strftime("%d/%m/%Y")
+            
+            records.append({'id': record_id, 'date': display_date, 'name': name, 'category': category, 'amount': amount, 'reinvested': reinvested, 'note': note, 'dt_obj': dt_obj})
+        
+        records.sort(key=lambda x: x['dt_obj'] if x['dt_obj'] else datetime.min, reverse=True)
+        for r in records: 
+            if 'dt_obj' in r: del r['dt_obj']
+        return records
+    except: return []
+
+def add_dividend_record(data):
+    try:
+        client = get_client()
+        sheet = client.open(SHEET_NAME)
+        ws = sheet.worksheet("Dividends")
+        new_id = str(uuid.uuid4())
+        row = [new_id, data['date'], data['name'], data['category'], data['amount'], data['reinvested'], data['note']]
+        ws.append_row(row)
+        return True
+    except: return False
+
+def get_dividend_chart_data(records):
+    try:
+        monthly_div = defaultdict(float)
+        for rec in records:
+            try: dt = datetime.strptime(rec['date'], "%d/%m/%Y")
+            except: continue
+            month_idx = dt.strftime("%m")
+            monthly_div[month_idx] += rec['amount']
+        months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        month_keys = [f"{i:02d}" for i in range(1, 13)]
+        data = [monthly_div[m] for m in month_keys]
+        return {'labels': months, 'datasets': [{'label': 'Dividend Income', 'data': data, 'backgroundColor': 'rgba(255, 193, 7, 0.7)', 'borderColor': '#ffc107', 'borderWidth': 1}]}
+    except: return {'labels': [], 'datasets': []}
+
 # --- Dashboard Logic ---
 def get_dashboard_data(start_date_str=None, end_date_str=None):
     try:
@@ -371,7 +404,7 @@ def get_dashboard_data(start_date_str=None, end_date_str=None):
         active_asset_names = [a['name'] for a in active_settings['assets']]
         active_cat_names = [c['name'] for c in active_settings['categories']]
 
-        # 1. Current Asset Logic (For Table 2, Table 3, and Rebalancing)
+        # 1. Current Asset Logic
         ws_asset = sheet.worksheet("Current Asset")
         raw_assets = ws_asset.get_all_records()
         
@@ -398,14 +431,13 @@ def get_dashboard_data(start_date_str=None, end_date_str=None):
                 
                 month_idx = date_obj.strftime("%m")
                 asset_name_pivot_data[asset_name][month_idx] += amount
-                category_pivot_data[cat][month_idx] += amount # เก็บข้อมูลเข้า Category Pivot (Table 2)
+                category_pivot_data[cat][month_idx] += amount 
                 monthly_asset_total[month_idx] += amount
 
         current_asset_value = sum(item['amount'] for item in latest_assets_snapshot.values())
         for item in latest_assets_snapshot.values():
             category_current_value[item['category']] += item['amount']
 
-        # Rebalancing Table
         allocation_table = []
         for cat_name, target_pct in category_targets.items():
             actual_val = category_current_value.get(cat_name, 0)
@@ -415,49 +447,37 @@ def get_dashboard_data(start_date_str=None, end_date_str=None):
             action_amount = target_val_thb - actual_val
             allocation_table.append({'category': cat_name, 'actual_val': actual_val, 'target_pct': target_pct, 'actual_pct': actual_pct, 'diff_pct': diff_pct, 'action_amount': action_amount, 'target_val': target_val_thb})
         
-        # 🔥 Table 2: Investment Flow (Source: Current Asset -> Group by Category) 🔥
         inv_pivot_rows = []
         for cat in active_cat_names:
             row_data = {'name': cat, 'months': [], 'total': 0, 'avg': 0}
-            
-            # คำนวณยอดล่าสุด (Snapshot) ของ Category นี้
+            cat_total = 0
             cat_latest_val = 0
             for item in latest_assets_snapshot.values():
                 if item['category'] == cat:
                     cat_latest_val += item['amount']
-            
-            # ดึงข้อมูลรายเดือน
-            cat_sum_months = 0
             for i in range(1, 13):
                 m_idx = f"{i:02d}"
                 val = category_pivot_data[cat][m_idx]
                 row_data['months'].append(val)
-                cat_sum_months += val
-            
-            row_data['total'] = cat_latest_val # ยอดรวม = ยอดล่าสุด
-            row_data['avg'] = cat_sum_months / 12 
+                cat_total += val
+            row_data['total'] = cat_latest_val 
+            row_data['avg'] = cat_total / 12 
             inv_pivot_rows.append(row_data)
 
-        # 🔥 Table 3: Asset Snapshot (Source: Current Asset -> Group by Asset Name) 🔥
         asset_pivot_rows = []
         for asset in active_asset_names:
             row_data = {'name': asset, 'months': [], 'total': 0, 'avg': 0}
-            
-            # คำนวณยอดล่าสุด (Snapshot) ของ Asset นี้
+            asset_total = 0
             latest_asset_val = latest_assets_snapshot.get(asset, {}).get('amount', 0)
-            
-            asset_sum_months = 0
             for i in range(1, 13):
                 m_idx = f"{i:02d}"
                 val = asset_name_pivot_data[asset][m_idx]
                 row_data['months'].append(val)
-                asset_sum_months += val
-            
-            row_data['total'] = latest_asset_val # ยอดรวม = ยอดล่าสุด
-            row_data['avg'] = asset_sum_months / 12 
+                asset_total += val
+            row_data['total'] = latest_asset_val 
+            row_data['avg'] = asset_total / 12 
             asset_pivot_rows.append(row_data)
 
-        # 2. Investment History (Source for Table 1 - Investment Row)
         ws_inv = sheet.worksheet("Investment")
         raw_txs = ws_inv.get_all_records()
         total_invested = 0
@@ -480,7 +500,6 @@ def get_dashboard_data(start_date_str=None, end_date_str=None):
                 month_idx = date_obj.strftime("%m")
                 monthly_invest_flow[month_idx] += flow_amount
 
-        # Table 1: Summary
         summary_table_data = {'investment': [], 'asset': [], 'diff': [], 'diff_percent': [], 'total_inv': 0, 'total_asset': 0, 'total_diff': 0, 'total_diff_pct': 0}
         running_inv = 0
         for i in range(1, 13):
@@ -501,7 +520,8 @@ def get_dashboard_data(start_date_str=None, end_date_str=None):
         summary_table_data['total_inv'] = running_inv
         summary_table_data['total_asset'] = current_asset_value
         summary_table_data['total_diff'] = current_asset_value - running_inv
-        summary_table_data['total_diff_pct'] = (summary_table_data['total_diff'] / running_inv) * 100 if running_inv > 0 else 0.0
+        if running_inv > 0: summary_table_data['total_diff_pct'] = (summary_table_data['total_diff'] / running_inv) * 100
+        else: summary_table_data['total_diff_pct'] = 0.0
         profit_loss = current_asset_value - total_invested
 
         return {
@@ -520,3 +540,42 @@ def get_dashboard_data(start_date_str=None, end_date_str=None):
     except Exception as e:
         print(f"❌ Error in manager.py: {e}")
         return None
+    
+# 🔥 ฟังก์ชันใหม่: วิเคราะห์ปันผล (รายปี / รายเดือน) 🔥
+def get_dividend_analysis_data(mode='yearly', filter_name=None):
+    try:
+        client = get_client()
+        sheet = client.open(SHEET_NAME)
+        ws = sheet.worksheet("Dividends")
+        raw_data = ws.get_all_records()
+        data_map = defaultdict(float)
+        for item in raw_data:
+            clean_item = {clean_key(k): v for k, v in item.items()}
+            amount = parse_amount(clean_item.get('Dividend Amount') or clean_item.get('Amount'))
+            date_val = parse_date(clean_item.get('Date') or clean_item.get('date'))
+            name = str(clean_item.get('Asset Name') or clean_item.get('Asset') or '').strip()
+            
+            # Filter by Name
+            if filter_name and filter_name.lower() not in name.lower(): continue
+            
+            if date_val:
+                if mode == 'monthly': key = date_val.strftime("%Y-%m")
+                else: key = date_val.strftime("%Y")
+                data_map[key] += amount
+        sorted_keys = sorted(data_map.keys())
+        labels = []
+        data = []
+        for k in sorted_keys:
+            if mode == 'monthly':
+                dt = datetime.strptime(k, "%Y-%m")
+                labels.append(dt.strftime("%b %Y"))
+            else: labels.append(k)
+            data.append(data_map[k])
+        if mode == 'monthly':
+            bg_color = 'rgba(255, 193, 7, 0.6)'
+            border_color = '#ffc107'
+        else:
+            bg_color = ['rgba(255, 99, 132, 0.7)', 'rgba(54, 162, 235, 0.7)', 'rgba(255, 206, 86, 0.7)', 'rgba(75, 192, 192, 0.7)', 'rgba(153, 102, 255, 0.7)', 'rgba(255, 159, 64, 0.7)']
+            border_color = '#fff'
+        return {'labels': labels, 'datasets': [{'label': f'Dividend Income ({filter_name if filter_name else "Total"})', 'data': data, 'backgroundColor': bg_color, 'borderColor': border_color, 'borderWidth': 1}]}
+    except: return {'labels': [], 'datasets': []}
