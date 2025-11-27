@@ -17,6 +17,7 @@ dividend_service = DividendService()
 
 app = Flask(__name__)
 app.secret_key = 'supersecretkey' 
+app.config['TEMPLATES_AUTO_RELOAD'] = True
 
 @app.route('/')
 def index():
@@ -103,7 +104,7 @@ def investments():
             records = []
             for t,n,c,q,p,a,nt in zip(request.form.getlist('type[]'), request.form.getlist('name[]'), request.form.getlist('category[]'), request.form.getlist('quantity[]'), request.form.getlist('price[]'), request.form.getlist('amount[]'), request.form.getlist('note[]')):
                 if n.strip(): 
-                    records.append({'date': date_val, 'action': t, 'name': n, 'category': c, 'qty': q, 'price': p, 'amount': a, 'note': nt})
+                    records.append({'date': date_val, 'action': t, 'name': n.strip(), 'category': c.strip(), 'qty': q.strip(), 'price': p.strip(), 'amount': a.strip(), 'note': nt.strip()})
             if records and investment_service.add_records_bulk(records): 
                 flash(f'บันทึก {len(records)} รายการ', 'success')
             else: 
@@ -171,6 +172,24 @@ def dashboard_dividend_yoy():
                            selected_mode=mode,
                            selected_name=filter_name,
                            assets=assets)
+
+@app.route('/dca')
+def dca():
+    """DCA (Dollar-Cost Averaging) Dashboard"""
+    try:
+        selected_asset = request.args.get('asset')
+        data = dashboard_service.get_dca_dashboard_data(selected_asset=selected_asset)
+        
+        return render_template('dca.html',
+                             metrics=data['metrics'],
+                             breakdown=data['breakdown'],
+                             assets=data['assets'],
+                             selected_asset=selected_asset or '',
+                             cost_vs_market_data=data['cost_vs_market_data'],
+                             monthly_buy_data=data['monthly_buy_data'])
+    except Exception as e:
+        flash(f'Error loading DCA data: {str(e)}', 'danger')
+        return redirect(url_for('index'))
 
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():

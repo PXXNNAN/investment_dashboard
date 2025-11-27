@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+{% block title %}DCA Dashboard{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="mb-0"><i class="fas fa-chart-line text-primary"></i> DCA Dashboard</h3>
+        <p class="text-muted small mb-0">Dollar-Cost Averaging Analysis - ติดตามต้นทุนเฉลี่ยและผลตอบแทน</p>
+    </div>
+</div>
+
+<!-- Filter -->
+<div class="card mb-4 border-0 shadow-sm">
+    <div class="card-body bg-white rounded">
+        <form action="/dca" method="GET" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="small fw-bold text-muted">เลือกสินทรัพย์</label>
+                <select name="asset" class="form-select" onchange="this.form.submit()">
+                    <option value="">ทั้งพอร์ต (All Assets)</option>
+                    {% for a in assets %}
+                        <option value="{{ a }}" {{ 'selected' if a == selected_asset else '' }}>{{ a }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-8 text-end">
+                <span class="badge bg-primary-subtle text-primary px-3 py-2">
+                    <i class="fas fa-info-circle me-1"></i> DCA = ลงทุนสม่ำเสมอเพื่อเฉลี่ยต้นทุน
+                </span>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Key Metrics Cards -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="text-muted small">เงินลงทุนรวม</span>
+                    <i class="fas fa-wallet text-primary"></i>
+                </div>
+                <h4 class="mb-0 fw-bold">{{ "{:,.2f}".format(metrics.total_invested) }}</h4>
+                <small class="text-muted">Total Invested</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="text-muted small">จำนวนหน่วยสะสม</span>
+                    <i class="fas fa-layer-group text-success"></i>
+                </div>
+                <h4 class="mb-0 fw-bold">{{ "{:,.4f}".format(metrics.total_units) }}</h4>
+                <small class="text-muted">Total Units</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100 {% if metrics.avg_cost > 0 %}bg-warning-subtle{% endif %}">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="text-muted small">ต้นทุนเฉลี่ยต่อหน่วย</span>
+                    <i class="fas fa-calculator text-warning"></i>
+                </div>
+                <h4 class="mb-0 fw-bold text-warning">{{ "{:,.2f}".format(metrics.avg_cost) }}</h4>
+                <small class="text-muted">Average Cost</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100 {% if metrics.unrealized_pl >= 0 %}bg-success-subtle{% else %}bg-danger-subtle{% endif %}">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="text-muted small">กำไร/ขาดทุน (ทิพย์)</span>
+                    <i class="fas fa-chart-line {% if metrics.unrealized_pl >= 0 %}text-success{% else %}text-danger{% endif %}"></i>
+                </div>
+                <h4 class="mb-0 fw-bold {% if metrics.unrealized_pl >= 0 %}text-success{% else %}text-danger{% endif %}">
+                    {{ "{:+,.2f}".format(metrics.unrealized_pl) }}
+                </h4>
+                <small class="{% if metrics.unrealized_pl >= 0 %}text-success{% else %}text-danger{% endif %}">
+                    {{ "{:+.2f}".format(metrics.unrealized_pl_pct) }}%
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row g-4 mb-4">
+    <!-- Cost vs Market Value Chart -->
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white">
+                <h6 class="mb-0 text-muted"><i class="fas fa-chart-area me-2"></i>Cost vs Market Value (เงินต้น vs มูลค่าตลาด)</h6>
+            </div>
+            <div class="card-body">
+                <div style="height: 350px;">
+                    <canvas id="costVsMarketChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- DCA Consistency Chart -->
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white">
+                <h6 class="mb-0 text-muted"><i class="fas fa-calendar-check me-2"></i>ยอดซื้อรายเดือน</h6>
+            </div>
+            <div class="card-body">
+                <div style="height: 350px;">
+                    <canvas id="monthlyBuyChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Asset Breakdown Table -->
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-white">
+        <h6 class="mb-0 text-muted"><i class="fas fa-table me-2"></i>รายละเอียดสินทรัพย์ (Asset Breakdown)</h6>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-3">Asset</th>
+                        <th class="text-end">Invested</th>
+                        <th class="text-end">Units</th>
+                        <th class="text-end">Avg. Price</th>
+                        <th class="text-end">Last Price</th>
+                        <th class="text-end">Current Value</th>
+                        <th class="text-end">P/L</th>
+                        <th class="text-end pe-3">% Change</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in breakdown %}
+                    <tr>
+                        <td class="ps-3 fw-bold">{{ item.name }}</td>
+                        <td class="text-end font-monospace">{{ "{:,.2f}".format(item.invested) }}</td>
+                        <td class="text-end font-monospace">{{ "{:,.4f}".format(item.units) }}</td>
+                        <td class="text-end font-monospace text-warning fw-bold">{{ "{:,.2f}".format(item.avg_price) }}</td>
+                        <td class="text-end font-monospace">{{ "{:,.2f}".format(item.last_price) }}</td>
+                        <td class="text-end font-monospace">{{ "{:,.2f}".format(item.current_value) }}</td>
+                        <td class="text-end font-monospace {% if item.pl >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            {{ "{:+,.2f}".format(item.pl) }}
+                        </td>
+                        <td class="text-end pe-3 fw-bold {% if item.pl_pct >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            {{ "{:+.2f}".format(item.pl_pct) }}%
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if not breakdown %}
+                    <tr>
+                        <td colspan="8" class="text-center py-5 text-muted">
+                            <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
+                            ยังไม่มีข้อมูลการลงทุน กรุณาบันทึก Transaction ก่อน
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const costVsMarketData = {{ cost_vs_market_data | tojson | default('{}') }};
+    const monthlyBuyData = {{ monthly_buy_data | tojson | default('{}') }};
+
+    // Cost vs Market Value Chart
+    if(costVsMarketData.labels && costVsMarketData.labels.length > 0) {
+        new Chart(document.getElementById('costVsMarketChart').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: costVsMarketData.labels,
+                datasets: [
+                    {
+                        label: 'เงินต้นสะสม (Cost)',
+                        data: costVsMarketData.cost,
+                        borderColor: '#6c757d',
+                        backgroundColor: 'rgba(108, 117, 125, 0.1)',
+                        fill: false,
+                        tension: 0.1
+                    },
+                    {
+                        label: 'มูลค่าตลาด (Market Value)',
+                        data: costVsMarketData.value,
+                        borderColor: '#0d6efd',
+                        backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                        fill: true,
+                        tension: 0.1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top' },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.dataset.label + ': ฿' + context.parsed.y.toLocaleString('en-US', {minimumFractionDigits: 2});
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: { 
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return '฿' + value.toLocaleString();
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Monthly Buy Chart
+    if(monthlyBuyData.labels && monthlyBuyData.labels.length > 0) {
+        console.log('Monthly Buy Data:', monthlyBuyData);
+        console.log('Amounts:', monthlyBuyData.amounts);
+        console.log('Colors:', monthlyBuyData.amounts.map(v => v >= 0 ? '#198754' : '#dc3545'));
+        
+        new Chart(document.getElementById('monthlyBuyChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: monthlyBuyData.labels,
+                datasets: [{
+                    label: 'Net Flow',
+                    data: monthlyBuyData.amounts,
+                    backgroundColor: monthlyBuyData.amounts.map(v => v >= 0 ? '#198754' : '#dc3545'),
+                    borderRadius: 5
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const value = context.parsed.y;
+                                const sign = value >= 0 ? '+' : '';
+                                return 'Net Flow: ' + sign + '฿' + value.toLocaleString('en-US', {minimumFractionDigits: 2});
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: { 
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                const sign = value >= 0 ? '' : '-';
+                                return sign + '฿' + Math.abs(value).toLocaleString();
+                            }
+                        }
+                    },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    }
+</script>
+{% endblock %}
