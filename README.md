@@ -21,16 +21,19 @@ Personal Investment Portfolio Dashboard built with Flask and Google Sheets for t
 
 ```
 investment_dashboard/
-├── app.py                      # Flask application
+├── app.py                      # Flask application (uses services)
 ├── config/
 │   └── settings.py            # Configuration
 ├── models/
 │   ├── asset.py               # Asset data model
-│   └── investment.py          # Investment data model
+│   ├── investment.py          # Investment data model
+│   └── dividend.py            # Dividend data model
 ├── services/
 │   ├── google_sheets_service.py  # Google Sheets API wrapper
 │   ├── asset_service.py       # Asset business logic
 │   ├── investment_service.py  # Investment business logic
+│   ├── dividend_service.py    # Dividend business logic
+│   ├── settings_service.py    # Settings business logic
 │   └── dashboard_service.py   # Dashboard calculations
 ├── utils/
 │   ├── date_utils.py          # Date parsing/formatting
